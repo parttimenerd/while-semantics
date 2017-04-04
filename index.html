@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Semantic evaluation of the While language via Semantic rules</title>
+    <script src="js/codemirror.js"></script>
+    <script src="js/while_mode.js"></script>
+    <script src="js/peg-0.10.0.min.js"></script>
+    <script src="js/big_step.js"></script>
+    <script src="js/js.cookies.js"></script>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css"/>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap-grid.css"/>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap-reboot.css"/>
+    <link rel="stylesheet" type="text/css" href="css/style.css"/>
+    <link rel="stylesheet" type="text/css" href="css/codemirror.css"/>
+</head>
+<body>
+<script>
+
+    _con = new Context({"a": 4});
+    let parser = peg.generate('\
+    start = _ c:Com _ {return c;};\
+\
+    Com \
+        = Seq;\
+    Seq \
+        = left:subcom _ ";" _ right:Seq {return new Seq(left, right);}\
+        / subcom;\
+    LocalAss \
+        = "{" _ "var" _ _var:Var _ ":=" _ aexp:Aexp _ ";" _ com:Com _ "}" {return new LocalAss(_var, aexp, com);};\
+    subcom \
+        = "skip" {return new Skip();}\
+        / _var:Var _ ":=" _ aexp:Aexp {return new Ass(_var, aexp);}\
+        / "if" _ "(" b:Bexp _ ")" _ "then" _ c1:Com _ "else" _ c2:Com {return new If(b, c1, c2);}\
+        / "while" _ "(" _ b:Bexp _ ")" _ "do" _ c:Com {return new While(b, c)}\
+        / "(" _ seq:Com _ ")" {return seq;}\
+        / LocalAss;\
+    Bexp = And;\
+    And \
+        = left:Not _ "&&" _ right:And {return new And(left, right);}\
+        / Not;\
+    Not \
+        = "not" _ exp:Not {return new Not(exp);}\
+        / "true" {return new Bool(true);}\
+        / le\;\
+    le \
+       = left:Aexp _ "<=" _ right:Aexp {return new LowerEquals(left, right);};\
+    Aexp\
+        = sub:Sub;\
+\
+    Sub\
+        = left:Mul _ "-" _ right:Sub { return new Sub(left, right); } \
+        / Mul; \
+        \
+    Mul\
+        = left:integer _ "*" _ right:Mul { return new Mul(left, right); } \
+        / int:integer {return new Num(int);} \
+        / Var;\
+    \
+    Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(_var.join(""));};\
+    integer\
+        = digits:[0-9]+ { return parseInt(digits.join(""), 10); };\
+    _ "whitespace"\
+        = [ \\t\\n\\r]*;\
+    ');
+    /*var test = parser.parse("if  (not 1 <= 3) then {skip} else {a:=3}");
+    var com = new ComEvalLine(test, _con, _con);
+    var el = new EvalStep(new Rule("bla"), com, [com, com]);
+console.log(el.toHTML());*/
+</script>
+
+    <div class="container">
+
+      <div class="starter-template" style="margin-top: 1cm;">
+        <h1>While Language </h1>
+          <small>See <a href="http://pp.info.uni-karlsruhe.de/lehre/SS2017/semantik/semantik-skript-2017.pdf">
+              course on semantics of programming languages
+          </a></small>
+          <div style="height: 3cm; border: solid darkgray 1px;">
+          <textarea class="form-control" id="source" rows="3"></textarea>
+          </div>
+          <div style="height: 2cm; border: solid darkgray 1px;">
+              <textarea class="form-control" id="vars" rows="3"></textarea>
+          </div>
+      </div>
+        <div class="form-group row">
+            <label for="maxSteps" class="col-2 col-form-label">Max steps</label>
+            <div class="col-2">
+                <input class="form-control" type="number" value="100" id="maxSteps" onkeyup="update()">
+            </div>
+        </div>
+    </div>
+<div class="container">
+    Result: <div id="resultContext"><textarea id="resultContextTA"></textarea></div>
+</div>
+
+    <div style="margin-top: 1cm; margin-left: auto; margin-right: auto; padding-top: 1cm; overflow: visible; text-align: center; height: 100%;">
+        <div id="result" style="margin-left: auto; margin-right: auto; height: 100%;overflow:visible;text-align: center;"></div>
+    </div>
+<div style="margin-top: 1cm; padding-top: 1cm; overflow: visible; text-align: left; height: 100%;">
+    <div id="resultST" style="width: 100%;height: 100%;overflow:visible;"></div>
+</div>
+
+<script>
+    let sourceEditor = CodeMirror.fromTextArea(document.getElementById("source"), {
+        mode:  "text/x-while",
+        lineWrapping: true,
+        matchClosing: true
+    });
+    sourceEditor.setSize("100%","100%");
+    sourceEditor.setValue((Cookies.get("source") || "").length < 1 ? "if (a<=2) then skip else a:=4" : Cookies.get("source"))
+    let varsEditor = CodeMirror.fromTextArea(document.getElementById("vars"), {
+        mode:  "text/x-while",
+        lineWrapping: true
+    });
+    varsEditor.setSize("100%","100%");
+    varsEditor.setValue((Cookies.get("vars") || "").length < 1 ? "a -> 5" : Cookies.get("vars"));
+    let resultContextEditor = CodeMirror.fromTextArea(document.getElementById("resultContextTA"), {
+        mode:  "text/x-while",
+        lineWrapping: true,
+        readOnly: true
+    });
+    document.getElementById("maxSteps").value = isNaN(Number(Cookies.get("maxSteps"))) ? 100 : Cookies.get("maxSteps");
+    resultContextEditor.setSize("90%","90%");
+    sourceEditor.on("change", function() {
+        update();
+    });
+    varsEditor.on("change", function() {
+        update();
+    });
+    update();
+    function update(){
+        let text = sourceEditor.getValue();
+        try {
+            let maxSteps = Number.parseInt(document.getElementById("maxSteps").value);
+            let contextFactory = new ContextFactory();
+            let con = contextFactory.createFromString(varsEditor.getValue());
+            let parsed = parser.parse(text.trim());
+            let result = new EvalBigSemantic(parsed, con, maxSteps).eval();
+            document.getElementById("result").innerHTML = result.toHTML();
+            resultContextEditor.setValue(result.currentEvalLine.endState.toValueHTML())
+            Cookies.set("source", text);
+            Cookies.set("maxSteps", maxSteps);
+            Cookies.set("vars", varsEditor.getValue());
+        } catch (e){
+            console.error(e);
+            resultContextEditor.setValue(e instanceof Error ? e.message : e)
+        }
+        // let resultST = new EvalSmallSemantic(parsed, con, maxSteps).eval();
+        // document.getElementById("resultST").innerHTML = resultST.toHTML()
+    }
+    //console.log(parser.parse("if(not 1 <= 3) then (skip) else (a:=3)"))
+</script>
+</body>
+</html>

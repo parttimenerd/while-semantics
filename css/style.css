@@ -22,3 +22,11 @@ td.conc {
 div.rulename {
     margin-top:-2em;
 }
+
+.katex-display {
+    margin: 0 0 0 0 !important;
+}
+
+.katex {
+    margin: 0 0 0 0 !important;
+}

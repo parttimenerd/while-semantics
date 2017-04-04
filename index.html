@@ -8,18 +8,20 @@
     <script src="js/peg-0.10.0.min.js"></script>
     <script src="js/big_step.js"></script>
     <script src="js/js.cookies.js"></script>
+    <script src="libs/katex/katex.js"></script>
+    <script src="libs/katex/contrib/auto-render.min.js"></script>
     <link rel="stylesheet" type="text/css" href="css/bootstrap.css"/>
     <link rel="stylesheet" type="text/css" href="css/bootstrap-grid.css"/>
     <link rel="stylesheet" type="text/css" href="css/bootstrap-reboot.css"/>
-    <link rel="stylesheet" type="text/css" href="css/style.css"/>
     <link rel="stylesheet" type="text/css" href="css/codemirror.css"/>
+    <link rel="stylesheet" type="text/css" href="libs/katex/katex.css"/>
+    <link rel="stylesheet" type="text/css" href="css/style.css"/>
 </head>
 <body>
 <script>
 
     _con = new Context({"a": 4});
     function compOp(op, left, right){
-        console.log(op);
         switch (op){
             case "<":
                 return new Lower(left, right);
@@ -76,11 +78,13 @@
         \
     subop = "-" / "+";\
     Mul\
-        = left:integer _ op:mulop _ right:Mul { return op[0] == "*" ? new Mul(left, right) : new Div(left, right); } \
-        / int:integer {return new Num(int);} \
-        / Var\
-        / "(" aexp:Aexp ")" {return aexp;};\
+        = left:Atom _ op:mulop _ right:Mul { return op[0] == "*" ? new Mul(left, right) : new Div(left, right); }\
+        / Atom; \
     \
+    Atom\
+        = int:integer {return new Num(int);} \
+        / Var\
+        / "(" _ aexp:Aexp _ ")" {return aexp;};\
     mulop = "*" / "/";\
     Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(_var.join(""));};\
     integer\
@@ -103,10 +107,10 @@ console.log(el.toHTML());*/
           <small>See <a href="http://pp.info.uni-karlsruhe.de/lehre/SS2017/semantik/semantik-skript-2017.pdf">
               course on semantics of programming languages
           </a></small>
-          <div style="height: 3cm; border: solid darkgray 1px;">
+          <div style="height: 2.5cm; border: solid darkgray 1px;">
           <textarea class="form-control" id="source" rows="3"></textarea>
           </div>
-          <div style="height: 2cm; border: solid darkgray 1px;">
+          <div style="height: 1cm; border: solid darkgray 1px;">
               <textarea class="form-control" id="vars" rows="3"></textarea>
           </div>
       </div>
@@ -120,15 +124,33 @@ console.log(el.toHTML());*/
 <div class="container">
     Result: <div id="resultContext"><textarea id="resultContextTA"></textarea></div>
 </div>
+<div class="container" style="height: 1cm; text-align: center;"><div id="ruleApplication"></div></div>
 
-    <div style="margin-top: 1cm; margin-left: auto; margin-right: auto; padding-top: 1cm; overflow: visible; text-align: center; height: 100%;">
+<div style="margin-top: 0cm; margin-left: auto; margin-right: auto; padding-top: 1cm; overflow: visible; text-align: center; height: 100%;">
         <div id="result" style="margin-left: auto; margin-right: auto; height: 100%;overflow:visible;text-align: center;"></div>
-    </div>
+</div>
 <div style="margin-top: 1cm; padding-top: 1cm; overflow: visible; text-align: left; height: 100%;">
     <div id="resultST" style="width: 100%;height: 100%;overflow:visible;"></div>
 </div>
 
 <script>
+    /** @param {RuleApplication} ruleApplication */
+    function displayRule(ruleApplication){
+        let elem = document.querySelector("#ruleApplication");
+        let formula = ruleApplication.toInstantiatedHTML();
+        let html = katex.renderToString(formula, {
+            displayMode: true,
+            macros: {
+                "\\RR": "\\mathbb{R}"
+            }
+        });
+        elem.innerHTML = html;
+        renderMathInElement(elem);
+    }
+    function clearRule(){
+        document.querySelector("#ruleApplication").innerHTML = "";
+    }
+
     let sourceEditor = CodeMirror.fromTextArea(document.getElementById("source"), {
         mode:  "text/x-while",
         lineWrapping: true,

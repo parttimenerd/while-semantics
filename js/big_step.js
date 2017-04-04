@@ -182,7 +182,7 @@ class Num extends Aexp {
     }
 
     toHTML(){
-        return this.value;
+        return String(this.value);
     }
 
     visit(visitor){
@@ -291,6 +291,10 @@ class Context {
 
     toShortHTMLString(){
         return `<var>σ<sub>${this.id}</sub></var>`
+    }
+
+    toLaTex(){
+        return `\\sigma_${this.id}`
     }
 
     /**
@@ -783,14 +787,39 @@ class ComEvalLine extends EvalLine {
 }
 
 class Rule {
-    constructor(name){
+    constructor(name, formula, instantiations){
         this.name = name;
+        this.formula = formula;
+        this.instantiations = instantiations;
     }
 
     toString(){
         return this.name
     }
 }
+
+class RuleApplication {
+    constructor(ruleId, instantiations){
+        this.ruleId = ruleId;
+        this.instantiations = instantiations;
+    }
+
+    toInstantiatedHTML(){
+        return `\\text{${this.toString()}}: ${rules[this.ruleId].formula} \\qquad ${this.instantiations.map(x => `${x[0]} \\equiv ${x[1]}`).join(",~")}`
+    }
+
+    toCallJS(){
+        return `displayRule(new RuleApplication("${this.ruleId}", ${JSON.stringify(this.instantiations)}))`;
+    }
+
+    toString(){
+        return rules[this.ruleId].toString();
+    }
+}
+
+rules = {};
+
+var __random_num = 10;
 
 /**
  * A semantic evaluation step
@@ -802,7 +831,7 @@ class Rule {
 class EvalStep {
     /**
      *
-     * @param {Rule} appliedRule
+     * @param {RuleApplication} appliedRule
      * @param {EvalLine} currentEvalLine
      * @param {EvalStep[]} resultingSteps
      */
@@ -816,16 +845,41 @@ class EvalStep {
         return new EvalStep(this.appliedRule, this.currentEvalLine.copy(), new Array(this.resultingSteps.map(x => x.copy())));
     }
 
-    toHTML(){
+    toHTML() {
+        __random_num += 1;
+        let id = __random_num;
+        if (this.appliedRule instanceof RuleApplication) {
+        eval(`     window.stepFunc${id} = function() {
+${this.appliedRule.toCallJS()};
+};`);
+    } else {
+        }
         return `
 <table style="margin: 0 auto;">
     <tr>
         ${this.resultingSteps.length > 0 ? this.resultingSteps.map(x => `<td>${x.toHTML()}</td>`).join("") : "<td></td>"}
-        <td class="rulename" rowspan="2"><div class="rulename">${this.appliedRule.toString()}</div></td></tr>
+        <td class="rulename" rowspan="2"><div class="rulename" onmouseleave='clearRule()' onmouseenter="window.stepFunc${id}()">${this.appliedRule.toString()}</div></td></tr>
     <tr><td class="${this.currentEvalLine instanceof BoolEvalLine ? "" : "conc"}" colspan="${Math.max(1, this.resultingSteps.length)}">${this.currentEvalLine.toHTML()}</td></tr>
-</table>`
+</table>
+`
     }
 }
+
+rules["maxSteps"] = new Rule("Executed the maximum number of steps", "\\text{Executed the maximum number of steps}");
+function ac(f, s, sigmaApp, doVerb=true){
+    return `\\langle ${doVerb ? verb(f) : f}, \\sigma ${s} \\rangle \\Downarrow \\sigma ${sigmaApp}`
+}
+function verb(s){
+    return `\\mathtt{${s.replace(" ", "~")}}`
+}
+rules["Skip"] = new Rule("Skip", `${ac("skip", "", "")}`);
+rules["Ass"] = new Rule("Ass", `${ac("x := a", "", "")} [x \\mapsto A [ a ] \\sigma ]`);
+rules["Seq"] = new Rule("Seq",`\\frac{ ${ac("c_0", "", "'")} \\qquad ${ac("c_1", "'", "' '")}}{${ac("c_0;c_1", "", "''")}}`);
+rules["IfTT"] = new Rule("IfTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{tt} \\qquad ${ac("c_0", "", "'")}}{${ac("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", "'", false)}}`)
+rules["IfFF"] = new Rule("IfFF", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{ff} \\qquad ${ac("c_1", "", "'")}}{${ac("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", "'", false)}}`)
+rules["WhileFF"] = new Rule("WhileFF", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{ff}}{${ac("\\mathtt{while~(} b \\mathtt{)~do~} c", "", "", false)}}`);
+rules["WhileTT"] = new Rule("WhileTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{tt} \\qquad ${ac("c", "", "'")} \\qquad ${ac("\\mathtt{while~(} b \\mathtt{)~do~} c", "'", "''", false)}}{${ac("\\mathtt{while~(} b \\mathtt{)~do~} c", "", "''", false)}}`);
+rules["Block"] = new Rule("Block", `\\frac{ ${ac("c", "[x \\mapsto \\mathcal{A}[a]\\sigma]", "'")} }{${ac("\\mathtt{\{~var~} x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{~\}}", "", "'[x \\mapsto \\sigma(x)]", false)}}`);
 
 class EvalBigSemantic {
 
@@ -857,7 +911,7 @@ class EvalBigSemantic {
     _dispatch(com, startContext){
         if (this.maxSteps <= this.steps){
             console.error("Executed the maximum number of steps");
-            return new EvalStep(new Rule("Executed the maximum number of steps"), new ComEvalLine(com, startContext, startContext));
+            return new EvalStep(new RuleApplication("maxSteps", []), new ComEvalLine(com, startContext, startContext));
         }
         this.steps +=1;
         let funcs = {
@@ -876,7 +930,7 @@ class EvalBigSemantic {
      * @param {Context} startContext
      * @return {EvalStep} */
     _visitSkip(com, startContext){
-        return new EvalStep(new Rule("Skip"), new ComEvalLine(com, startContext, startContext));
+        return new EvalStep(new RuleApplication("Skip", []), new ComEvalLine(com, startContext, startContext));
     }
 
     /**
@@ -886,7 +940,12 @@ class EvalBigSemantic {
      */
     _visitAss(com, startContext){
         let newCon = startContext.setImm(com.var, arithmeticValue(com.expr, startContext));
-        return new EvalStep(new Rule("Ass"), new ComEvalLine(com, startContext, newCon))
+        return new EvalStep(
+            new RuleApplication("Ass",
+                [["x", com.var.name],
+                ["a", verb(com.expr.toHTML())],
+                ["\\sigma", startContext.toLaTex()]]),
+            new ComEvalLine(com, startContext, newCon))
     }
 
     /**
@@ -899,7 +958,12 @@ class EvalBigSemantic {
         let com1Line = this._dispatch(com.com1, startContext);
         let com2Line = this._dispatch(com.com2, com1Line.currentEvalLine.endState);
         var endContext = com2Line.currentEvalLine.endState;
-        return new EvalStep(new Rule("Seq"), new ComEvalLine(com, startContext, endContext), [com1Line, com2Line]);
+        return new EvalStep(
+            new RuleApplication("Seq", [["c_0", verb(com.com1.toHTML())], ["c_1", verb(com.com2.toHTML())],
+                                        ["\\sigma", startContext.toLaTex()],
+                                        ["\\sigma'", com1Line.currentEvalLine.endState.toLaTex()],
+                                        ["\\sigma''", com2Line.currentEvalLine.endState.toLaTex()]]),
+            new ComEvalLine(com, startContext, endContext), [com1Line, com2Line]);
     }
 
     /**
@@ -913,7 +977,10 @@ class EvalBigSemantic {
         let chosenCom = condVal ? com.com1 : com.com2;
         let chosenComLine = this._dispatch(chosenCom, startContext);
         let rule = new Rule(condVal ? "IfTT" : "IfFF");
-        return new EvalStep(rule, new ComEvalLine(com, startContext, chosenComLine.currentEvalLine.endState), [boolLine, chosenComLine])
+        return new EvalStep(new RuleApplication(rule, [["c_0", verb(com.com1.toHTML())], ["c_1", verb(com.com2.toHTML())],
+                ["\\sigma", startContext.toLaTex()],
+                ["\\sigma'", chosenComLine.currentEvalLine.endState.toLaTex()]]),
+            new ComEvalLine(com, startContext, chosenComLine.currentEvalLine.endState), [boolLine, chosenComLine])
     }
 
     /**
@@ -929,24 +996,17 @@ class EvalBigSemantic {
         if (condVal){
             let firstBodyEval = this._dispatch(com.body, startContext);
             let nextWhileEval = this._dispatch(com, firstBodyEval.currentEvalLine.endState);
-            return new EvalStep(rule, new ComEvalLine(com, startContext, nextWhileEval.currentEvalLine.endState), [boolLine, firstBodyEval, nextWhileEval]);
+            return new EvalStep(new RuleApplication("WhileTT",
+                    [["b", verb(com.cond.toHTML())], ["c", verb(com.body.toHTML())], ["\\sigma", startContext.toLaTex()],
+                    ["\\sigma'", firstBodyEval.currentEvalLine.endState.toLaTex()],
+                    ["\\sigma''", nextWhileEval.currentEvalLine.endState.toLaTex()]]),
+                new ComEvalLine(com, startContext, nextWhileEval.currentEvalLine.endState), [boolLine, firstBodyEval, nextWhileEval]);
         } else {
-            return new EvalStep(rule, new ComEvalLine(com, startContext, startContext), [boolLine]);
+            return new EvalStep(new RuleApplication("WhileFF",
+                [["b", verb(com.cond.toHTML())], ["c", verb(com.body.toHTML())], ["\\sigma", startContext.toLaTex()]]),
+                new ComEvalLine(com, startContext, startContext), [boolLine]);
         }
-        return new EvalStep(rule, new ComEvalLine(com, startContext, chosenComLine.currentEvalLine.endState), [boolLine, chosenComLine]);
-    }
-
-    /**
-     * @param {Seq} com
-     * @param {Context} startContext
-     * @return {EvalStep}
-     */
-    _visitSeq(com, startContext){
-        let sigma_ = startContext;
-        let com1Line = this._dispatch(com.com1, startContext);
-        let com2Line = this._dispatch(com.com2, com1Line.currentEvalLine.endState);
-        var endContext = com2Line.currentEvalLine.endState;
-        return new EvalStep(new Rule("Seq"), new ComEvalLine(com, startContext, endContext), [com1Line, com2Line]);
+        //return new EvalStep(rule, new ComEvalLine(com, startContext, chosenComLine.currentEvalLine.endState), [boolLine, chosenComLine]);
     }
 
     /**
@@ -956,13 +1016,21 @@ class EvalBigSemantic {
      */
     _visitLocalAss(com, startContext){
         let sigma_ = startContext;
-        var oldVal = startContext.getValue(com.var);
+        let oldVal = startContext.getValue(com.var);
         let newContext = startContext.setImm(com.var, arithmeticValue(com.expr, startContext));
         let comLine = this._dispatch(com.com, newContext);
         let endContext = comLine.currentEvalLine.endState.setImm(com.var, oldVal);
-        return new EvalStep(new Rule("Block"), new ComEvalLine(com, startContext, endContext), [comLine]);
+        return new EvalStep(
+            new RuleApplication("Block",
+                [["x", com.var.name], ["a", verb(com.expr.toHTML())],
+                 ["c", verb(com.com.toHTML())],
+                 ["\\sigma", startContext.toLaTex()],
+                 ["\\sigma'", newContext.toLaTex()]]),
+            new ComEvalLine(com, startContext, endContext), [comLine]);
     }
 }
+
+/* the following is just rough draft */
 
 class SmallStepEvalSteps {
 

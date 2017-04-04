@@ -28,10 +28,18 @@ class Visitor {
 
     /**
      *
-     * @param {Sub} sub
+     * @param {BinaryBexp} bexp
      */
-    visitSub(sub){
-       return this.defaultVisit(sub)
+    visitBinaryBexp(bexp){
+       return this.defaultVisit(bexp);
+    }
+
+    /**
+     *
+     * @param {BinaryAexp} aexp
+     */
+    visitBinaryAexp(aexp){
+        return this.defaultVisit(aexp);
     }
 
     /**
@@ -348,6 +356,7 @@ class BinaryAexp extends Aexp {
     visit(visitor){
         this.left.visit(visitor);
         this.right.visit(visitor);
+        return visitor.visitBinaryAexp(this)
     }
 }
 
@@ -358,12 +367,17 @@ class Sub extends BinaryAexp {
     }
 
     eval(context){
-        return this.left.eval(context) - this.right.eval(context);
+        return new Num(this.left.eval(context).value - this.right.eval(context).value);
+    }
+}
+
+class Add extends BinaryAexp {
+    get operator(){
+        return "+"
     }
 
-    visit(visitor){
-        super.visit(visitor);
-        return visitor.visitSub(this);
+    eval(context){
+        return new Num(this.left.eval(context).value + this.right.eval(context).value);
     }
 }
 
@@ -374,12 +388,18 @@ class Mul extends BinaryAexp {
     }
 
     eval(context){
-        return this.left.eval(context) * this.right.eval(context);
+        return new Num(this.left.eval(context).value * this.right.eval(context).value);
+    }
+}
+
+class Div extends BinaryAexp {
+
+    get operator(){
+        return "/"
     }
 
-    visit(visitor){
-        super.visit(visitor);
-        return visitor.visitMul(this);
+    eval(context){
+        return new Num(this.left.eval(context).value / this.right.eval(context).value);
     }
 }
 
@@ -419,6 +439,7 @@ class BinaryBexp extends Bexp {
     visit(visitor){
         this.left.visit(visitor);
         this.right.visit(visitor);
+        return visitor.visitBinaryBexp(this);
     }
 }
 
@@ -447,13 +468,58 @@ class LowerEquals extends BinaryBexp {
         return "<="
     }
 
-    visit(visitor){
-        super.visit(visitor);
-        return visitor.visitLowerEquals(this)
+    eval(context){
+        return new Bool(this.left.eval(context).value <= this.right.eval(context).value);
+    }
+}
+
+class Lower extends BinaryBexp {
+    get operator(){
+        return "<"
     }
 
     eval(context){
-        return new Bool(this.left.eval(context).value <= this.right.eval(context).value);
+        return new Bool(this.left.eval(context).value < this.right.eval(context).value);
+    }
+}
+
+class GreaterEquals extends BinaryBexp {
+    get operator(){
+        return ">="
+    }
+
+    eval(context){
+        return new Bool(this.left.eval(context).value > this.right.eval(context).value);
+    }
+}
+
+class Greater extends BinaryBexp {
+    get operator(){
+        return ">"
+    }
+
+    eval(context){
+        return new Bool(this.left.eval(context).value > this.right.eval(context).value);
+    }
+}
+
+class UnEquals extends BinaryBexp {
+    get operator(){
+        return "!="
+    }
+
+    eval(context){
+        return new Bool(this.left.eval(context).value !== this.right.eval(context).value);
+    }
+}
+
+class Equals extends BinaryBexp {
+    get operator(){
+        return "=="
+    }
+
+    eval(context){
+        return new Bool(this.left.eval(context).value === this.right.eval(context).value);
     }
 }
 
@@ -488,13 +554,19 @@ class And extends BinaryBexp {
         return "&&"
     }
 
-    visit(visitor){
-        super.visit(visitor);
-        return visitor.visitAnd(this)
+    eval(context){
+        return new Bool(this.left.eval(context).value && this.right.eval(context).value);
+    }
+}
+
+class Or extends BinaryBexp {
+
+    get operator(){
+        return "||"
     }
 
     eval(context){
-        return new Bool(this.left.eval(context).value && this.right.eval(context).value);
+        return new Bool(this.left.eval(context).value || this.right.eval(context).value);
     }
 }
 

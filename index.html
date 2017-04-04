@@ -18,6 +18,23 @@
 <script>
 
     _con = new Context({"a": 4});
+    function compOp(op, left, right){
+        console.log(op);
+        switch (op){
+            case "<":
+                return new Lower(left, right);
+            case "<=":
+                return new LowerEquals(left, right);
+            case ">":
+                return new Greater(left, right);
+            case ">=":
+                return new GreaterEquals(left, right);
+            case "!=":
+                return new UnEquals(left, right);
+            case "==":
+                return new Equals(left, right);
+        }
+    }
     let parser = peg.generate('\
     start = _ c:Com _ {return c;};\
 \
@@ -37,26 +54,34 @@
         / LocalAss;\
     Bexp = And;\
     And \
-        = left:Not _ "&&" _ right:And {return new And(left, right);}\
+        = left:Or _ "&&" _ right:And {return new And(left, right);}\
+        / Or;\
+    Or \
+        = left:Not _ "||" _ right:Or {return new Or(left, right);}\
         / Not;\
     Not \
         = "not" _ exp:Not {return new Not(exp);}\
         / "true" {return new Bool(true);}\
-        / le\;\
+        / le;\
     le \
-       = left:Aexp _ "<=" _ right:Aexp {return new LowerEquals(left, right);};\
+       = left:Aexp _ op:leop _ right:Aexp {return new compOp(op, left, right);}\
+       / "(" bexp:Bexp ")" {return bexp;};\
+    leop = "<=" / "<" / ">=" / ">" / "!=" / "==";\
     Aexp\
         = sub:Sub;\
 \
     Sub\
-        = left:Mul _ "-" _ right:Sub { return new Sub(left, right); } \
+        = left:Mul _ op:subop _ right:Sub { return op[0] == "-" ? new Sub(left, right) : new Add(left, right); } \
         / Mul; \
         \
+    subop = "-" / "+";\
     Mul\
-        = left:integer _ "*" _ right:Mul { return new Mul(left, right); } \
+        = left:integer _ op:mulop _ right:Mul { return op[0] == "*" ? new Mul(left, right) : new Div(left, right); } \
         / int:integer {return new Num(int);} \
-        / Var;\
+        / Var\
+        / "(" aexp:Aexp ")" {return aexp;};\
     \
+    mulop = "*" / "/";\
     Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(_var.join(""));};\
     integer\
         = digits:[0-9]+ { return parseInt(digits.join(""), 10); };\
@@ -68,6 +93,8 @@
     var el = new EvalStep(new Rule("bla"), com, [com, com]);
 console.log(el.toHTML());*/
 </script>
+
+<a href="https://github.com/parttimenerd/whilesemantic"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/38ef81f8aca64bb9a64448d0d70f1308ef5341ab/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f6461726b626c75655f3132313632312e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png"></a>
 
     <div class="container">
 

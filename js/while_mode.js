@@ -33,7 +33,7 @@
             "skip"
         ]);
         var keywords = wordRE(["not",
-            "true", "end", "if", "then", "else", "do",
+            "true", "false", "end", "if", "then", "else", "do",
             "while", "var", ":=", "->", "→"]);
 
         var indentTokens = wordRE(["if","repeat","do", "\\(", "{"]);

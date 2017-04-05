@@ -3,12 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <title>Semantic evaluation of the While language via Semantic rules</title>
+    <script src="js/jquery-3.2.0.min.js"></script>
     <script src="js/codemirror.js"></script>
     <script src="js/while_mode.js"></script>
     <script src="js/peg-0.10.0.min.js"></script>
-    <script src="js/big_step.js"></script>
+    <script src="js/PEGUtils.js"></script>
+    <script src="js/semantic.js"></script>
     <script src="js/js.cookies.js"></script>
     <script src="libs/katex/katex.js"></script>
+    <script src="js/bootstrap.js"></script>
     <script src="libs/katex/contrib/auto-render.min.js"></script>
     <link rel="stylesheet" type="text/css" href="css/bootstrap.css"/>
     <link rel="stylesheet" type="text/css" href="css/codemirror.css"/>
@@ -17,86 +20,86 @@
 </head>
 <body>
 <script>
+    // the initialization of the parser is delayed to improve the startup time of the page
 
-    _con = new Context({"a": 4});
-    function compOp(op, left, right){
-        switch (op){
-            case "<":
-                return new Lower(left, right);
-            case "<=":
-                return new LowerEquals(left, right);
-            case ">":
-                return new Greater(left, right);
-            case ">=":
-                return new GreaterEquals(left, right);
-            case "!=":
-                return new UnEquals(left, right);
-            case "==":
-                return new Equals(left, right);
-        }
-    }
-    let parser = peg.generate('\
-    start = _ c:Com _ {return c;};\
-\
-    Com \
-        = Seq;\
-    Seq \
-        = left:subcom _ ";" _ right:Seq {return new Seq(left, right);}\
-        / subcom;\
-    LocalAss \
-        = "{" _ "var" _ _var:Var _ ":=" _ aexp:Aexp _ ";" _ com:Com _ "}" {return new LocalAss(_var, aexp, com);};\
-    subcom \
-        = "skip" {return new Skip();}\
-        / _var:Var _ ":=" _ aexp:Aexp {return new Ass(_var, aexp);}\
-        / "if" _ "(" b:Bexp _ ")" _ "then" _ c1:Com _ "else" _ c2:Com {return new If(b, c1, c2);}\
-        / "while" _ "(" _ b:Bexp _ ")" _ "do" _ c:Com {return new While(b, c)}\
-        / "(" _ seq:Com _ ")" {return seq;}\
-        / LocalAss;\
-    Bexp = And;\
-    And \
-        = left:Or _ "&&" _ right:And {return new And(left, right);}\
-        / Or;\
-    Or \
-        = left:Not _ "||" _ right:Or {return new Or(left, right);}\
-        / Not;\
-    Not \
-        = "not" _ exp:Not {return new Not(exp);}\
-        / "true" {return new Bool(true);}\
-        / le;\
-    le \
-       = left:Aexp _ op:leop _ right:Aexp {return new compOp(op, left, right);}\
-       / "(" bexp:Bexp ")" {return bexp;};\
-    leop = "<=" / "<" / ">=" / ">" / "!=" / "==";\
-    Aexp\
-        = sub:Sub;\
-\
-    Sub\
-        = left:Mul _ op:subop _ right:Sub { return op[0] == "-" ? new Sub(left, right) : new Add(left, right); } \
-        / Mul; \
+    function initParser() {
+        window.compOp = function(op, left, right) {
+            switch (op) {
+                case "<":
+                    return new Lower(left, right);
+                case "<=":
+                    return new LowerEquals(left, right);
+                case ">":
+                    return new Greater(left, right);
+                case ">=":
+                    return new GreaterEquals(left, right);
+                case "!=":
+                    return new UnEquals(left, right);
+                case "==":
+                    return new Equals(left, right);
+            }
+        };
+
+        window.parser = peg.generate('\
+        start = _ c:Com _ {return c;};\
         \
-    subop = "-" / "+";\
-    Mul\
-        = left:Atom _ op:mulop _ right:Mul { return op[0] == "*" ? new Mul(left, right) : new Div(left, right); }\
-        / Atom; \
-    \
-    Atom\
-        = int:integer {return new Num(int);} \
-        / Var\
-        / "(" _ aexp:Aexp _ ")" {return aexp;};\
-    mulop = "*" / "/";\
-    Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(_var.join(""));};\
-    integer\
-        = digits:[0-9]+ { return parseInt(digits.join(""), 10); };\
-    _ "whitespace"\
-        = [ \\t\\n\\r]*;\
-    ');
-    /*var test = parser.parse("if  (not 1 <= 3) then {skip} else {a:=3}");
-    var com = new ComEvalLine(test, _con, _con);
-    var el = new EvalStep(new Rule("bla"), com, [com, com]);
-console.log(el.toHTML());*/
+        Com \
+            = Seq;\
+        Seq \
+            = left:subcom _ ";" _ right:Seq {return new Seq(left, right);}\
+            / subcom;\
+        LocalAss \
+            = "{" _ "var" _ _var:Var _ ":=" _ aexp:Aexp _ ";" _ com:Com _ "}" {return new LocalAss(_var, aexp, com);};\
+        subcom \
+            = "skip" {return new Skip();}\
+            / _var:Var _ ":=" _ aexp:Aexp {return new Ass(_var, aexp);}\
+            / "if" _ "(" b:Bexp _ ")" _ "then" _ c1:Com _ "else" _ c2:Com {return new If(b, c1, c2);}\
+            / "while" _ "(" _ b:Bexp _ ")" _ "do" _ c:Com {return new While(b, c)}\
+            / "(" _ seq:Com _ ")" {return new SingleCom(seq);}\
+            / LocalAss;\
+        Bexp = And;\
+        And \
+            = left:Or _ "&&" _ right:And {return new And(left, right);}\
+            / Or;\
+        Or \
+            = left:Not _ "||" _ right:Or {return new Or(left, right);}\
+            / Not;\
+        Not \
+            = "not" _ exp:Not {return new Not(exp);}\
+            / "true" {return new Bool(true);}\
+            / "false" {return new Bool(false);}\
+            / le;\
+        le \
+           = left:Aexp _ op:leop _ right:Aexp {return new compOp(op, left, right);}\
+           / "(" bexp:Bexp ")" {return new SingleBexp(bexp);};\
+        leop = "<=" / "<" / ">=" / ">" / "!=" / "==";\
+        Aexp\
+            = sub:Sub;\
+        \
+        Sub\
+            = left:Mul _ op:subop _ right:Sub { return op[0] == "-" ? new Sub(left, right) : new Add(left, right); } \
+            / Mul; \
+            \
+        subop = "-" / "+";\
+        Mul\
+            = left:Atom _ op:mulop _ right:Mul { return op[0] == "*" ? new Mul(left, right) : new Div(left, right); }\
+            / Atom; \
+        \
+        Atom\
+            = int:integer {return new Num(int);} \
+            / Var\
+            / "(" _ aexp:Aexp _ ")" {return new SingleAexp(aexp);};\
+        mulop = "*" / "/";\
+        Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(_var.join(""));};\
+        integer\
+            = digits:[0-9]+ { return parseInt(digits.join(""), 10); };\
+        _ "whitespace"\
+            = [ \\t\\n\\r]*;\
+        ');
+    }
 </script>
-
-<a href="https://github.com/parttimenerd/whilesemantic"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/38ef81f8aca64bb9a64448d0d70f1308ef5341ab/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f6461726b626c75655f3132313632312e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png"></a>
+<div style="width: 100%; position: fixed; background-color: rgba(255, 255, 255, 0.95);">
+    <a href="https://github.com/parttimenerd/whilesemantic"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://camo.githubusercontent.com/38ef81f8aca64bb9a64448d0d70f1308ef5341ab/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f6461726b626c75655f3132313632312e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png"></a>
 
     <div class="container">
 
@@ -114,45 +117,74 @@ console.log(el.toHTML());*/
           <form class="form-inline" style="margin-bottom: 0.5cm;">
               <div class="form-group">
                   <label for="maxSteps" class="">Max steps</label>
-                      <input class="form-control" type="number" value="100" id="maxSteps" onkeyup="update()">
+                      <input class="form-control" type="number" value="100" id="maxSteps" style="margin-left: 0.5cm; width: 2cm; text-align: right" onkeyup="update()">
+                  <label style="margin-left: 1cm; margin-right: 0.5cm;">Used semantic</label>
+                  <div class="btn-group" data-toggle="buttons">
+                      <label class="btn btn-primary" id="bsMode" onclick="setMode(true); update();">
+                          <input type="radio" name="options"> BigStep
+                      </label>
+                      <label class="btn btn-primary" id="ssMode" onclick="setMode(false); update();">
+                          <input type="radio" name="options"> SmallStep
+                      </label>
+                  </div>
               </div>
           </form>
       </div>
 
     </div>
-<div class="container">
+<div class="container" style="height: 1.5cm;">
     Result: <div id="resultContext"><textarea id="resultContextTA"></textarea></div>
 </div>
-<div class="container" style="height: 1cm; text-align: center; "><div id="ruleApplication"></div></div>
+<div style="height: 1cm; text-align: center; margin-bottom: 1.5cm;"><div id="ruleApplication"></div></div>
+</div>
 
-<div style="margin-top: 0cm; margin-left: auto; margin-right: auto; padding-top: 1cm; overflow: visible; overflow-y: auto; text-align: center; height: 100%;">
-        <div id="result" style="margin-left: auto; margin-right: auto; height: 100%;overflow:visible;text-align: center;"></div>
+<div style="padding-top: 12cm; margin-left: auto; margin-right: auto; text-align: center;">
+    <div id="result" style="margin-left: auto; margin-right: auto; height: 100%;text-align: center;"></div>
 </div>
 
 <script>
+    if (Cookies.get("mode") !== "ss") {
+        $("#bsMode").button("toggle");
+    } else {
+        $("#ssMode").button("toggle");
+    }
+    _inBigStepMode = true;
+    function isInBigStepMode(){
+        return _inBigStepMode;
+    }
+
+    function setMode(isBigStep){
+        _inBigStepMode = isBigStep;
+        Cookies.set("mode", isInBigStepMode() ? "bs" : "ss");
+    }
+
     function display(html){
         document.querySelector("#ruleApplication").innerHTML = html;
     }
     /** @param {RuleApplication} ruleApplication */
     function displayRule(ruleApplication){
-        let formula = ruleApplication.toInstantiatedHTML();
-        displayLaTex(formula);
-    }
-    function displayLaTex(formula){
+        let formulaArr = ruleApplication.toInstantiatedLaTexArr();
         let elem = document.querySelector("#ruleApplication");
-        let html = katex.renderToString(formula, {
+        elem.innerHTML = renderLaTex(formulaArr[0]) + `<div class="instantiated-vars">${renderLaTex(formulaArr[1])}</div>`;
+        renderMathInElement(elem);
+    }
+    function renderLaTex(formula){
+        return katex.renderToString(formula.replace("\\\\mapsto", "\\mapsto"), {
             displayMode: true,
             macros: {
-                "\\RR": "\\mathbb{R}"
+                "\\step": "\\to_{1}"
             }
         });
-        elem.innerHTML = html;
+    }
+    function displayLaTex(formula, formula2 = ""){
+        let elem = document.querySelector("#ruleApplication");
+        elem.innerHTML = renderLaTex(formula) + renderLaTex(formula2);
         renderMathInElement(elem);
     }
     function clearRule(){
         document.querySelector("#ruleApplication").innerHTML = "";
     }
-
+    setMode(Cookies.get("mode") !== "ss");
     let sourceEditor = CodeMirror.fromTextArea(document.getElementById("source"), {
         mode:  "text/x-while",
         lineWrapping: true,
@@ -171,8 +203,9 @@ console.log(el.toHTML());*/
         lineWrapping: true,
         readOnly: true
     });
-    document.getElementById("maxSteps").value = isNaN(Number(Cookies.get("maxSteps"))) ? 100 : Cookies.get("maxSteps");
+    document.getElementById("maxSteps").value = isNaN(Number(Cookies.get("maxSteps"))) ? 50 : Cookies.get("maxSteps");
     resultContextEditor.setSize("90%","90%");
+    initParser();
     sourceEditor.on("change", function() {
         update();
     });
@@ -181,18 +214,31 @@ console.log(el.toHTML());*/
     });
     update();
     function update(){
+        if (sourceEditor === undefined){
+            return;
+        }
         let text = sourceEditor.getValue();
+        Cookies.set("source", text);
+        Cookies.set("maxSteps", maxSteps);
+        Cookies.set("vars", varsEditor.getValue());
         try {
             let maxSteps = Number.parseInt(document.getElementById("maxSteps").value);
             let contextFactory = new ContextFactory();
             let con = contextFactory.createFromString(varsEditor.getValue());
-            let parsed = parser.parse(text.trim());
-            let result = new EvalBigSemantic(parsed, con, maxSteps).eval();
+            let parsed = PEGUtil.parse(parser, text.trim());
+            if (parsed.error !== null) {
+                resultContextEditor.setValue(PEGUtil.errorMessage(parsed.error, true));
+                return;
+            }
+            var result;
+            if (isInBigStepMode()) {
+                result = new EvalBigSemantic(parsed.ast, con, maxSteps).eval();
+                resultContextEditor.setValue(result.currentEvalLine.endState.toValueHTML());
+            } else {
+                result = new EvalSmallStepSemantic(parsed.ast, con, maxSteps).eval();
+                resultContextEditor.setValue(result.endState.toValueHTML());
+            }
             document.getElementById("result").innerHTML = result.toHTML();
-            resultContextEditor.setValue(result.currentEvalLine.endState.toValueHTML())
-            Cookies.set("source", text);
-            Cookies.set("maxSteps", maxSteps);
-            Cookies.set("vars", varsEditor.getValue());
         } catch (e){
             console.error(e);
             resultContextEditor.setValue(e instanceof Error ? e.message : e)

@@ -208,9 +208,9 @@ class ContextFactory {
     createFromString(str){
         let map = new Map();
         try {
-            str.replace(" ", "").split(",").forEach(part => {
+            str.replace(/ /g, "").split(",").forEach(part => {
                 if (part.length > 1) {
-                    let subParts = part.split(/->|→/);
+                    let subParts = part.split(/->|→|↦/);
                     map.set(subParts[0].trim(), Number(subParts[1].trim()));
                 }
             });
@@ -268,7 +268,7 @@ class Context {
     toHTML(){
         var strs = [];
         for (let key of this.map.keys()) {
-            strs.push(`${key} → ${this.map.get(key).toHTML()}`)
+            strs.push(`${key} ↦ ${this.map.get(key).toHTML()}`)
         }
         return `[${this.id}, ${strs.join(", ")}]`
     }
@@ -276,7 +276,7 @@ class Context {
     toValueHTML(){
         let strs = [];
         for (let key of this.map.keys()) {
-            strs.push(`${key} → ${this.map.get(key).toHTML()}`)
+            strs.push(`${key} ↦ ${this.map.get(key).toHTML()}`)
         }
         return strs.length === 0 ? "&empty;" : strs.join(", ")
     }
@@ -286,11 +286,15 @@ class Context {
     }
 
     toShortHTMLString(){
-        return `<span onmouseleave="clearRule()" onmouseenter="${this.toDisplayJSCode()}"><var>σ</var><sub>${this.id}</sub></span>`
+        return `<span onmouseleave="clearRule()" onmouseover="${this.toDisplayJSCode()}"><var>σ</var>${this._subbedId()}</span>`
     }
 
     toShortHTMLStringWoJS(){
-        return `<var>σ</var><sub>${this.id}</sub>`
+        return `<var>σ</var>${this._subbedId()}`
+    }
+
+    _subbedId(){
+        return `<span class="sub">${this.id}</span>`
     }
 
     toLaTex(){
@@ -310,7 +314,7 @@ class Context {
     }
 
     toDisplayJSCode(){
-        return `displayLaTex('${this.toLongLaTex().replace("\\", "\\\\")}')`
+        return `displayLaTex('${this.toLongLaTex().replace('\\', '\\\\')}')`
     }
 
     /**
@@ -420,6 +424,30 @@ class Div extends BinaryAexp {
 
     eval(context){
         return new Num(this.left.eval(context).value / this.right.eval(context).value);
+    }
+}
+
+class SingleAexp extends Aexp {
+
+    /**
+     *
+     * @param  {Aexp} expression
+     */
+    constructor(expression){
+        super();
+        this.expression = expression
+    }
+
+    toHTML(){
+        return "(" + this.expression.toHTML() + ")"
+    }
+
+    visit(visitor){
+        return this.expression.visit(visitor);
+    }
+
+    eval(context){
+        return this.expression.eval(context);
     }
 }
 
@@ -568,6 +596,30 @@ class Not extends Bexp {
     }
 }
 
+class SingleBexp extends Bexp {
+
+    /**
+     *
+     * @param  {Bexp} expression
+     */
+    constructor(expression){
+        super();
+        this.expression = expression
+    }
+
+    toHTML(){
+        return "(" + this.expression.toHTML() + ")"
+    }
+
+    visit(visitor){
+        return this.expression.visit(visitor);
+    }
+
+    eval(context){
+        return this.expression.eval(context);
+    }
+}
+
 class And extends BinaryBexp {
 
     get operator(){
@@ -594,6 +646,14 @@ class Com extends ASTNode {
 
     constructor(){
         super();
+    }
+
+    /** @param {Com} com */
+    _comToHTML(com){
+        if (com instanceof Seq || com instanceof If || com instanceof While){
+            return "(" + com.toHTML() + ")";
+        }
+        return com.toHTML();
     }
 }
 
@@ -684,6 +744,28 @@ class Seq extends Com {
     }
 }
 
+/**
+ * Allows to have of notion of parantheses in the AST
+ */
+class SingleCom extends Com {
+    /**
+     *
+     * @param {Com} com
+     */
+    constructor(com){
+        super();
+        this.com = com;
+    }
+
+    toHTML(){
+        return `(${this.com.toHTML()})`
+    }
+
+    visit(visitor){
+        return this.com.visit(visitor);
+    }
+}
+
 class If extends Com {
     /**
      *
@@ -699,7 +781,7 @@ class If extends Com {
     }
 
     toHTML(){
-        return `if (${this.cond.toHTML()}) then (${this.com1.toHTML()}) else (${this.com2.toHTML()})`
+        return `if (${this.cond.toHTML()}) then ${this._comToHTML(this.com1)} else ${this._comToHTML(this.com1)}`
     }
 
     visit(visitor){
@@ -723,7 +805,7 @@ class While extends Com {
     }
 
     toHTML(){
-        return `while (${this.cond.toHTML()}) do (${this.body.toHTML()})`
+        return `while (${this.cond.toHTML()}) do ${this._comToHTML(this.body)}`
     }
 
     visit(visitor){
@@ -766,9 +848,38 @@ class BoolEvalLine extends EvalLine {
 }
 
 /**
+ * A part of an evaluation that is equivalent to `\sigma_i = \sigma_j [var -> value]`
+ */
+class AssActualValueEvalLine extends EvalLine {
+    /**
+     * @param {Context} context1
+     * @param {Context} context2
+     * @param {Var} _var
+     * @param {Num} value
+     */
+    constructor(context1, context2, _var, value){
+        super();
+        this.context1 = context1;
+        this.context2 = context2;
+        this.var = _var;
+        this.value = value
+    }
+
+    toString(){
+        return `${this.context2.toShortHTMLString()} = ${this.context1.toShortHTMLString()}[${this.var.toHTML()} ↦ ${this.value.toHTML()}]`
+    }
+
+    toHTML(){
+        return this.toString();
+    }
+}
+
+/**
  * A line of a big step semantic evaluation
  * i.e. <c, \sigma> ↓ \sigma'
  * it tells us for a given start state \sigma and a given program c that a possible end state is \sigma'
+ *
+ * the endState may me omitted, thus the class is usable for the small step and the big step semantic
  */
 class ComEvalLine extends EvalLine {
 
@@ -776,13 +887,15 @@ class ComEvalLine extends EvalLine {
      *
      * @param {Com} program
      * @param {Context} startState
-     * @param {Context} endStates
+     * @param {Context} endState
+     * @param {Com} _actualCom
      */
-    constructor(program, startState, endState){
+    constructor(program, startState, endState = null, _actualCom = null){
         super();
         this.program = program;
         this.startState = startState;
         this.endState = endState;
+        this.actualCom = _actualCom;
     }
 
     copy(){
@@ -790,7 +903,7 @@ class ComEvalLine extends EvalLine {
     }
 
     toString(){
-        let ret = `〈<code>${this.program.toHTML()}</code>, ${this.startState.toShortHTMLString()}〉`
+        let ret = `〈<code>${this.program.toHTML().replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code>, ${this.startState.toShortHTMLString()}〉`
         if (this.endState instanceof Context) {
             return `${ret} ⇓ ${this.endState.toShortHTMLString()}`
         }
@@ -798,7 +911,7 @@ class ComEvalLine extends EvalLine {
     }
 
     toHTML(){
-        return this.toString().replace("<=", "&lt;=")
+        return this.toString()
     }
 }
 
@@ -820,8 +933,9 @@ class RuleApplication {
         this.instantiations = instantiations;
     }
 
-    toInstantiatedHTML(){
-        return `\\text{${this.toString()}}: ${rules[this.ruleId].formula} \\qquad ${this.instantiations.map(x => `${x[0]} \\equiv ${x[1]}`).join(",~")}`
+    toInstantiatedLaTexArr(){
+        return [`\\text{${this.toString()}}: ${rules[this.ruleId].formula}`,
+            `${this.instantiations.map(x => `${x[0]} \\equiv ${x[1]}`).join(",~")}`]
     }
 
     toCallJS(){
@@ -838,7 +952,7 @@ rules = {};
 var __random_num = 10;
 
 /**
- * A semantic evaluation step
+ * A big step semantic evaluation step
  * e.g.
  *      A  B
  * Rule ----
@@ -875,18 +989,18 @@ ${this.appliedRule.toCallJS()};
     <tr>
         ${this.resultingSteps.length > 0 ? this.resultingSteps.map(x => `<td>${x.toHTML()}</td>`).join("") : "<td></td>"}
         <td class="rulename" rowspan="2"><div class="rulename" onmouseleave='clearRule()' onmouseenter="window.stepFunc${id}()">${this.appliedRule.toString()}</div></td></tr>
-    <tr><td class="${this.currentEvalLine instanceof BoolEvalLine ? "" : "conc"}" colspan="${Math.max(1, this.resultingSteps.length)}">${this.currentEvalLine.toHTML()}</td></tr>
+    <tr><td class="${!(this.currentEvalLine instanceof  ComEvalLine) ? "" : "conc"}" colspan="${Math.max(1, this.resultingSteps.length)}">${this.currentEvalLine.toHTML()}</td></tr>
 </table>
 `
     }
 }
 
-rules["maxSteps"] = new Rule("Executed the maximum number of steps", "\\text{Executed the maximum number of steps}");
+rules["maxSteps"] = new Rule("MaxSteps", "\\text{Executed the maximum number of steps}");
 function ac(f, s, sigmaApp, doVerb=true){
     return `\\langle ${doVerb ? verb(f) : f}, \\sigma ${s} \\rangle \\Downarrow \\sigma ${sigmaApp}`
 }
 function verb(s){
-    return `\\mathtt{${s.replace(" ", "~")}}`
+    return `\\mathtt{${s.replace(/ /g, "~")}}`
 }
 rules["Skip"] = new Rule("Skip", `${ac("skip", "", "")}`);
 rules["Ass"] = new Rule("Ass", `${ac("x := a", "", "")} [x \\mapsto A [ a ] \\sigma ]`);
@@ -936,7 +1050,8 @@ class EvalBigSemantic {
             "Ass": this._visitAss,
             "LocalAss": this._visitLocalAss,
             "If": this._visitIf,
-            "While": this._visitWhile
+            "While": this._visitWhile,
+            "SingleCom": this._visitSingleCom
         };
         return funcs[com.constructor.name].apply(this, [com, startContext])
     }
@@ -961,7 +1076,8 @@ class EvalBigSemantic {
                 [["x", com.var.name],
                 ["a", verb(com.expr.toHTML())],
                 ["\\sigma", startContext.toLaTex()]]),
-            new ComEvalLine(com, startContext, newCon))
+            new ComEvalLine(com, startContext, newCon), [
+                new AssActualValueEvalLine(startContext, newCon, com.var, newCon.getValue(com.var))])
     }
 
     /**
@@ -1044,33 +1160,125 @@ class EvalBigSemantic {
                  ["\\sigma'", newContext.toLaTex()]]),
             new ComEvalLine(com, startContext, endContext), [comLine]);
     }
-}
-
-/* the following is just rough draft */
-
-class SmallStepEvalSteps {
 
     /**
-     *
-     * @param {EvalLine[]} lines
+     * @param {LocalAss} com
+     * @param {Context} startContext
+     * @return {EvalStep}
      */
-    constructor(lines){
-        this.lines = lines
-    }
-
-    add(line){
-        this.lines.push(line)
-    }
-
-    toHTML(){
-        let arrow = "→<sub>1</sub> ";
-        let firstLine = this.lines[0].toHTML();
-        let hiddenFirst = `<span style="visibility: hidden">${firstLine}</span>`;
-        return this.lines.map(x => `${x === this.lines[0] ? "" : (hiddenFirst + arrow)}${x.toHTML()}`).join("<br/>") + "<br/>" + hiddenFirst + arrow + "*";
+    _visitSingleCom(com, startContext){
+        return this._dispatch(com.com, startContext);
     }
 }
 
-class EvalSmallSemantic {
+/**
+ * A small step semantic evaluation step
+ * e.g.
+ *  →_1 A
+ */
+class SSEvalStep {
+    /**
+     *
+     * @param {RuleApplication} appliedRule
+     * @param {ComEvalLine} currentEvalLine
+     * @param {Boolean} maxStepsReached
+     */
+    constructor(appliedRule, currentEvalLine, maxStepsReached = false){
+        this.appliedRule = appliedRule;
+        this.currentEvalLine = currentEvalLine;
+        this.maxStepsReached = maxStepsReached;
+    }
+
+    copy(){
+        return new SSEvalStep(this.appliedRule, this.currentEvalLine.copy(), this.maxStepsReached);
+    }
+
+    toHTML() {
+        __random_num += 1;
+        let id = __random_num;
+        if (this.appliedRule instanceof RuleApplication) {
+            eval(`     window.stepFunc${id} = function() {
+${this.appliedRule.toCallJS()};
+};`);
+        }
+        return `
+    <div class="ss_step" onmouseleave='clearRule()' onmouseenter="window.stepFunc${id}()">
+        <span class="ss_arrow">→<span class="sub">1</span></span>
+        <span class="ss_eval_line">
+            ${this.maxStepsReached ? `… maximum number of steps reached ` : this.currentEvalLine.toHTML()}
+        </span>
+    </div>`
+    }
+}
+
+class SSEvalSteps {
+    /**
+     *
+     * @param {ComEvalLine} startLine
+     * @param {SSEvalStep[]} steps
+     */
+    constructor(startLine, steps = []) {
+        this.startLine = startLine;
+        this.steps = steps;
+    }
+
+    addStep(step) {
+        this.steps.push(step);
+    }
+
+    toHTML() {
+        let tableLines = [];
+        if (this.steps.length === 0) {
+            tableLines.push([this.startLine.toHTML(), ""])
+        } else {
+            tableLines.push([this.startLine.toHTML(), this.steps[0].toHTML()]);
+            for (let i = 1; i < this.steps.length; i++) {
+                tableLines.push(["", this.steps[i].toHTML()]);
+            }
+        }
+        return `
+<table class="ss_eval_steps">
+    ${tableLines.map(x => `<tr><td class="ss_first_col">${x[0]}</td><td class="ss_step_col">${x[1]}</td></tr>`).join("\n")}
+</table>`
+    }
+
+    /** @return {ComEvalLine} */
+    get endLine(){
+        return this.steps.length === 0 ? this.startLine : this.steps[this.steps.length - 1].currentEvalLine;
+    }
+
+    /** @return {Context} */
+    get endState() {
+        return this.endLine.startState;
+    }
+
+    /** @return {Com} */
+    get endCom(){
+        return this.endLine.program;
+    }
+}
+
+function acs(f, s, doVerb=true){
+    return `\\langle ${doVerb ? verb(f) : f}, \\sigma ${s} \\rangle `
+}
+rules["SkipSS"] = new Rule("Skip", `${ac("skip", "", "")}`);
+rules["AssSS"] = new Rule("Ass", `${acs("x := a", "")} [x \\mapsto A [ a ] \\sigma ]`);
+rules["Seq1SS"] = new Rule("Seq1",`\\frac{ ${acs("c_0", "", false)} \\step ${acs("c_0'", "'", false)}}{${acs("c_0 \\mathtt{;~} c_1", "", false)} \\step ${acs("c_0' \\mathtt{;~} c_1", "", false)}}`);
+rules["Seq2SS"] = new Rule("Seq1",`${acs("\\mathtt{skip;}~c", "", doVerb=false)} \\step ${acs("c", "", doVerb=false)}`);
+rules["IfTTSS"] = new Rule("IfTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{tt}}{${acs("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", false)} \\step ${acs("c_0", "", false)}}`);
+rules["IfFFSS"] = new Rule("IfTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{ff}}{${acs("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", false)} \\step ${acs("c_1", "", false)}}`);rules["WhileFFSS"] = new Rule("WhileFF", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{ff}}{${ac("\\mathtt{while~(} b \\mathtt{)~do~} c", "", "", false)}}`);
+rules["WhileSS"] = new Rule("While", `${acs("\\mathtt{while~(} b \\mathtt{)~do~} c", "", false)} ${acs("\\mathtt{if ~(} b \\mathtt{)~then~(}~c~\\mathtt{;~while~(} b \\mathtt{)~do~} c \\mathtt{)~else~skip}", "", false)}`);
+rules["BlockSS"] = new Rule("Block", `\\frac{ ${ac("c", "[x \\mapsto \\mathcal{A}[a]\\sigma]", "'")} }{${ac("\\mathtt{\{~var~} x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{~\}}", "", "'[x \\mapsto \\sigma(x)]", false)}}`);
+
+
+/**
+ * @param {Com} com
+ */
+function isSkip(com) {
+    return com instanceof Skip;
+}
+
+class EvalSmallStepSemantic {
 
     /**
      *
@@ -1080,137 +1288,155 @@ class EvalSmallSemantic {
      */
     constructor(program, startContext, maxSteps = 100){
         this.program = program;
-        this.evalLine = new ComEvalLine(program, startContext, null);
+        this.evalLine = new ComEvalLine(program, startContext, null, program);
         this.startContext = startContext;
         this.maxSteps = maxSteps;
         this.steps = 0;
+        /**
+         * Structure that capture all steps
+         * @type {SSEvalSteps}
+         */
+        this.evalSteps = null
     }
 
+    /** @return {SSEvalSteps} */
     eval(){
-        let evalSteps = new SmallStepEvalSteps([]);
-        var last = this.evalLine;
-        var changed = true;
-        while (changed){
-            evalSteps.add(last);
-            let cur = this._dispatch(last);
-            changed = cur.program !== last.program;
-            last = cur
-        }
-        return evalSteps;
+        this.evalSteps = new SSEvalSteps(new ComEvalLine(this.program, this.startContext));
+        this._dispatch(this.program, this.startContext, x => x);
+        return this.evalSteps;
     }
 
     /**
      *
-     * @param {EvalLine} line
-     * @return {EvalLine}
+     * @param {RuleApplication} appliedRule
+     * @param {Com} actualCom
+     * @param {Context} context
+     * @param {Function<Com, Com>} surround
      */
-    _dispatch(line){
-        if (this.maxSteps <= this.steps){
-            console.error("Executed the maximum number of steps");
-            return new ComEvalLine(line.program, line.endContext, line.endContext);
+    _addStep(appliedRule, actualCom, context, surround) {
+        let step = new SSEvalStep(appliedRule, new ComEvalLine(surround(actualCom), context, null, actualCom));
+        this.evalSteps.addStep(step);
+    }
+
+    /**
+     *
+     * @param {Com} com
+     * @param {Context} startContext
+     * @param {Function<Com, Com>} surround
+     */
+    _dispatch(com, startContext, surround){
+        if (isSkip(com)){
+            return;
         }
-        this.steps += 1;
+        if (this.maxSteps <= this.steps){
+            console.warn("Executed the maximum number of steps");
+            this._addStep(new RuleApplication("maxSteps", []), new Skip(), startContext, x => x);
+            return;
+        }
+        this.steps +=1;
         let funcs = {
             "Skip": this._visitSkip,
             "Seq": this._visitSeq,
             "Ass": this._visitAss,
             "LocalAss": this._visitLocalAss,
             "If": this._visitIf,
-            "While": this._visitWhile
+            "While": this._visitWhile,
+            "SingleCom": this._visitSingleCom
         };
-        return funcs[line.program.constructor.name].apply(this, [line])
-    }
-
-    _firstNonSkip(line){
-
+        funcs[com.constructor.name].apply(this, [com, startContext, surround])
     }
 
     /**
-     * @param {EvalLine} line
-     * @return {EvalLine} */
-    _visitSkip(line){
-        return line;
+     * @param {Skip} com
+     * @param {Context} startContext
+     * @param {Function<Com, Com>} surround
+     */
+    _visitSkip(com, startContext, surround){
     }
 
     /**
-     * @param {EvalLine} line
-     * @return {EvalLine} */
-    _visitAss(line){
+     * @param {Skip} com
+     * @param {Context} startContext
+     * @param {Function<Com, Com>} surround
+     */
+    _visitAss(com, startContext, surround){
         let newCon = startContext.setImm(com.var, arithmeticValue(com.expr, startContext));
-        return new EvalStep(new Rule("Ass"), new ComEvalLine(com, startContext, newCon))
+        this._addStep(new RuleApplication("AssSS",
+            [["x", com.var.name],
+                ["a", verb(com.expr.toHTML())],
+                ["\\sigma", startContext.toLaTex()]]), new Skip(), newCon, surround)
     }
 
     /**
      * @param {Seq} com
      * @param {Context} startContext
-     * @return {EvalStep}
+     * @param {Function<Com, Com>} surround
      */
-    _visitSeq(com, startContext){
-        let sigma_ = startContext;
-        let com1Line = this._dispatch(com.com1, startContext);
-        let com2Line = this._dispatch(com.com2, com1Line.currentEvalLine.endState);
-        var endContext = com2Line.currentEvalLine.endState;
-        return new EvalStep(new Rule("Seq"), new ComEvalLine(com, startContext, endContext), [com1Line, com2Line]);
+    _visitSeq(com, startContext, surround){
+        if (isSkip(com.com1)){ // Seq2
+            this._addStep(
+                new RuleApplication("Seq2SS",
+                    [["c", verb(com.com2.toHTML())],
+                    ["\\sigma", startContext.toLaTex()]]), com.com2, startContext, surround);
+            this._dispatch(com.com2, startContext, surround);
+        } else {
+            this._dispatch(com.com1, this.evalSteps.endState, x => surround(new Seq(x, com.com2)));
+            this._addStep(
+                new RuleApplication("Seq1SS", [
+                        ["c_0", verb(com.com1.toHTML())],
+                        ["c_1", verb(com.com2.toHTML())],
+                        ["\\sigma", startContext.toLaTex()],
+                        ["c_0''", this.evalSteps.endLine.actualCom.toHTML()],
+                        ["\\sigma'", this.evalSteps.endState.toLaTex()]]),
+                com.com2, startContext, surround);
+            this._dispatch(new Seq(new Skip(), com.com2), this.evalSteps.endState, surround);
+        }
     }
 
     /**
-     * @param {If} com
+     * @param {Seq} com
      * @param {Context} startContext
-     * @return {EvalStep}
+     * @param {Function<Com, Com>} surround
      */
-    _visitIf(com, startContext){
+    _visitIf(com, startContext, surround){
         let condVal = booleanValue(com.cond, startContext).value;
-        let boolLine = new BoolEvalLine(com.cond, new Bool(condVal), startContext);
         let chosenCom = condVal ? com.com1 : com.com2;
-        let chosenComLine = this._dispatch(chosenCom, startContext);
-        let rule = new Rule(condVal ? "IfTT" : "IfFF");
-        return new EvalStep(rule, new ComEvalLine(com, startContext, chosenComLine.currentEvalLine.endState), [boolLine, chosenComLine])
+        let rule = new Rule(condVal ? "IfTTSS" : "IfFFSS");
+        this._addStep(new RuleApplication(rule,
+                [["c_0", verb(com.com1.toHTML())], ["c_1", verb(com.com2.toHTML())],
+                 ["\\sigma", startContext.toLaTex()]]),
+                chosenCom, startContext, surround);
+        this._dispatch(chosenCom, startContext, surround);
     }
 
     /**
      * @param {While} com
      * @param {Context} startContext
-     * @return {EvalStep}
+     * @param {Function<Com, Com>} surround
      */
-    _visitWhile(com, startContext){
-        let condVal = booleanValue(com.cond, startContext).value;
-        let boolLine = new BoolEvalLine(com.cond, new Bool(condVal), startContext);
-        let chosenCom = condVal ? com.com1 : com.com2;
-        let rule = new Rule(condVal ? "WhileTT" : "WhileFF");
-        if (condVal){
-            let firstBodyEval = this._dispatch(com.body, startContext);
-            let nextWhileEval = this._dispatch(com, firstBodyEval.currentEvalLine.endState);
-            return new EvalStep(rule, new ComEvalLine(com, startContext, nextWhileEval.currentEvalLine.endState), [boolLine, firstBodyEval, nextWhileEval]);
-        } else {
-            return new EvalStep(rule, new ComEvalLine(com, startContext, startContext), [boolLine]);
-        }
-        return new EvalStep(rule, new ComEvalLine(com, startContext, chosenComLine.currentEvalLine.endState), [boolLine, chosenComLine]);
+    _visitWhile(com, startContext, surround){
+        let newCom = new If(com.cond, new Seq(com.body, com), new Skip());
+        this._addStep(new RuleApplication("WhileSS",
+            [["b", com.cond.toHTML()], ["c", verb(com.body.toHTML())], ["\\sigma", startContext.toLaTex()]]),
+            newCom, startContext, surround);
+        this._dispatch(newCom, startContext, surround);
+    }
+
+    /**
+     * @param {While} com
+     * @param {Context} startContext
+     * @param {Function<Com, Com>} surround
+     */
+    _visitLocalAss(com, startContext, surround){
+        throw "The BLOCK rule isn't implemented for the small step semantic"
     }
 
     /**
      * @param {Seq} com
      * @param {Context} startContext
-     * @return {EvalStep}
+     * @param {Function<Com, Com>} surround
      */
-    _visitSeq(com, startContext){
-        let sigma_ = startContext;
-        let com1Line = this._dispatch(com.com1, startContext);
-        let com2Line = this._dispatch(com.com2, com1Line.currentEvalLine.endState);
-        var endContext = com2Line.currentEvalLine.endState;
-        return new EvalStep(new Rule("Seq"), new ComEvalLine(com, startContext, endContext), [com1Line, com2Line]);
-    }
-
-    /**
-     * @param {LocalAss} com
-     * @param {Context} startContext
-     * @return {EvalStep}
-     */
-    _visitLocalAss(com, startContext){
-        let sigma_ = startContext;
-        var oldVal = startContext.getValue(com.var);
-        let newContext = startContext.setImm(com.var, arithmeticValue(com.expr, startContext));
-        let comLine = this._dispatch(com.com, newContext);
-        let endContext = comLine.currentEvalLine.endState.setImm(com.var, oldVal);
-        return new EvalStep(new Rule("Block"), new ComEvalLine(com, startContext, endContext), [comLine]);
+    _visitSingleCom(com, startContext, surround){
+        return this._dispatch(com.com, startContext, x => new SingleCom(surround(x)));
     }
 }

@@ -1261,14 +1261,15 @@ class SSEvalSteps {
 function acs(f, s, doVerb=true){
     return `\\langle ${doVerb ? verb(f) : f}, \\sigma ${s} \\rangle `
 }
-rules["SkipSS"] = new Rule("Skip", `${ac("skip", "", "")}`);
+rules["SkipSS"] = new Rule("Skip", `${ac("skip", "", "")}`);//\\step ${acs("x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{;~} x \\mathtt{~=~} n", "", false)}
 rules["AssSS"] = new Rule("Ass", `${acs("x := a", "")} [x \\mapsto A [ a ] \\sigma ]`);
 rules["Seq1SS"] = new Rule("Seq1",`\\frac{ ${acs("c_0", "", false)} \\step ${acs("c_0'", "'", false)}}{${acs("c_0 \\mathtt{;~} c_1", "", false)} \\step ${acs("c_0' \\mathtt{;~} c_1", "", false)}}`);
-rules["Seq2SS"] = new Rule("Seq1",`${acs("\\mathtt{skip;}~c", "", doVerb=false)} \\step ${acs("c", "", doVerb=false)}`);
+rules["Seq2SS"] = new Rule("Seq2",`${acs("\\mathtt{skip;}~c", "", false)} \\step ${acs("c", "", false)}`);
 rules["IfTTSS"] = new Rule("IfTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{tt}}{${acs("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", false)} \\step ${acs("c_0", "", false)}}`);
 rules["IfFFSS"] = new Rule("IfTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{ff}}{${acs("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", false)} \\step ${acs("c_1", "", false)}}`);rules["WhileFFSS"] = new Rule("WhileFF", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{ff}}{${ac("\\mathtt{while~(} b \\mathtt{)~do~} c", "", "", false)}}`);
 rules["WhileSS"] = new Rule("While", `${acs("\\mathtt{while~(} b \\mathtt{)~do~} c", "", false)} ${acs("\\mathtt{if ~(} b \\mathtt{)~then~(}~c~\\mathtt{;~while~(} b \\mathtt{)~do~} c \\mathtt{)~else~skip}", "", false)}`);
-rules["BlockSS"] = new Rule("Block", `\\frac{ ${ac("c", "[x \\mapsto \\mathcal{A}[a]\\sigma]", "'")} }{${ac("\\mathtt{\{~var~} x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{~\}}", "", "'[x \\mapsto \\sigma(x)]", false)}}`);
+rules["Block1SS"] = new Rule("Block1", `\\frac{\\forall a': [x \\mapsto a'] \\notin \\sigma}{${acs("\\mathtt{\\{~var~} x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{~\\}}", "", false)} \\step ${acs("x \\mathtt{~=~} a \\mathtt{;~}c", "", false)}}`);
+rules["Block2SS"] = new Rule("Block2", `\\frac{\\exists a': [x \\mapsto a'] \\in \\sigma \\land \\mathcal{A}[a'] = n}{${acs("\\mathtt{\\{~var~} x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{~\\}}", "", false)} \\step ${acs("x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{;~} x \\mathtt{~=~} n", "", false)}}`);
 
 
 /**
@@ -1381,15 +1382,21 @@ class EvalSmallStepSemantic {
             this._dispatch(com.com2, startContext, surround);
         } else {
             this._dispatch(com.com1, this.evalSteps.endState, x => surround(new Seq(x, com.com2)));
-            this._addStep(
+            // TODO: should the Seq1SS rule really be omitted?
+            /*this._addStep(
                 new RuleApplication("Seq1SS", [
                         ["c_0", verb(com.com1.toHTML())],
                         ["c_1", verb(com.com2.toHTML())],
                         ["\\sigma", startContext.toLaTex()],
                         ["c_0''", this.evalSteps.endLine.actualCom.toHTML()],
                         ["\\sigma'", this.evalSteps.endState.toLaTex()]]),
-                com.com2, startContext, surround);
-            this._dispatch(new Seq(new Skip(), com.com2), this.evalSteps.endState, surround);
+                com.com2, this.evalSteps.endState, surround);
+                */
+            if (isSkip(com.com2)){
+                this._dispatch(com.com2, this.evalSteps.endState, surround);
+            } else {
+                this._dispatch(new Seq(new Skip(), com.com2), this.evalSteps.endState, surround);
+            }
         }
     }
 
@@ -1423,12 +1430,25 @@ class EvalSmallStepSemantic {
     }
 
     /**
-     * @param {While} com
+     * @param {LocalAss} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
      */
     _visitLocalAss(com, startContext, surround){
-        throw "The BLOCK rule isn't implemented for the small step semantic"
+        let oldVal = startContext.getValue(com.var);
+        var newCom;
+        if (oldVal === undefined){
+            newCom = new Seq(new Ass(com.var, com.expr), com.com);
+            this._addStep(new RuleApplication("Block1SS",
+                [["x", com.var.name], ["a", com.expr.toHTML()], ["c", com.com.toHTML()]], ["\\sigma", startContext.toLaTex()]),
+                newCom, startContext, surround);
+        } else {
+            newCom = new Seq(new Seq(new Ass(com.var, com.expr), com.com), new Ass(com.var, oldVal));
+            this._addStep(new RuleApplication("Block2SS",
+                [["x", com.var.name], ["a", com.expr.toHTML()], ["c", com.com.toHTML()],  ["\\sigma", startContext.toLaTex()], ["n", oldVal.toHTML()]]),
+                newCom, startContext, surround);
+        }
+        this._dispatch(newCom, startContext, surround);
     }
 
     /**

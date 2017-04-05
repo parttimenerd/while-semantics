@@ -11,8 +11,6 @@
     <script src="libs/katex/katex.js"></script>
     <script src="libs/katex/contrib/auto-render.min.js"></script>
     <link rel="stylesheet" type="text/css" href="css/bootstrap.css"/>
-    <link rel="stylesheet" type="text/css" href="css/bootstrap-grid.css"/>
-    <link rel="stylesheet" type="text/css" href="css/bootstrap-reboot.css"/>
     <link rel="stylesheet" type="text/css" href="css/codemirror.css"/>
     <link rel="stylesheet" type="text/css" href="libs/katex/katex.css"/>
     <link rel="stylesheet" type="text/css" href="css/style.css"/>
@@ -110,34 +108,38 @@ console.log(el.toHTML());*/
           <div style="height: 2.5cm; border: solid darkgray 1px;">
           <textarea class="form-control" id="source" rows="3"></textarea>
           </div>
-          <div style="height: 1cm; border: solid darkgray 1px;">
+          <div style="height: 1cm; border: solid darkgray 1px; margin-bottom: 0.5cm;">
               <textarea class="form-control" id="vars" rows="3"></textarea>
           </div>
+          <form class="form-inline" style="margin-bottom: 0.5cm;">
+              <div class="form-group">
+                  <label for="maxSteps" class="">Max steps</label>
+                      <input class="form-control" type="number" value="100" id="maxSteps" onkeyup="update()">
+              </div>
+          </form>
       </div>
-        <div class="form-group row">
-            <label for="maxSteps" class="col-2 col-form-label">Max steps</label>
-            <div class="col-2">
-                <input class="form-control" type="number" value="100" id="maxSteps" onkeyup="update()">
-            </div>
-        </div>
+
     </div>
 <div class="container">
     Result: <div id="resultContext"><textarea id="resultContextTA"></textarea></div>
 </div>
-<div class="container" style="height: 1cm; text-align: center;"><div id="ruleApplication"></div></div>
+<div class="container" style="height: 1cm; text-align: center; "><div id="ruleApplication"></div></div>
 
-<div style="margin-top: 0cm; margin-left: auto; margin-right: auto; padding-top: 1cm; overflow: visible; text-align: center; height: 100%;">
+<div style="margin-top: 0cm; margin-left: auto; margin-right: auto; padding-top: 1cm; overflow: visible; overflow-y: auto; text-align: center; height: 100%;">
         <div id="result" style="margin-left: auto; margin-right: auto; height: 100%;overflow:visible;text-align: center;"></div>
-</div>
-<div style="margin-top: 1cm; padding-top: 1cm; overflow: visible; text-align: left; height: 100%;">
-    <div id="resultST" style="width: 100%;height: 100%;overflow:visible;"></div>
 </div>
 
 <script>
+    function display(html){
+        document.querySelector("#ruleApplication").innerHTML = html;
+    }
     /** @param {RuleApplication} ruleApplication */
     function displayRule(ruleApplication){
-        let elem = document.querySelector("#ruleApplication");
         let formula = ruleApplication.toInstantiatedHTML();
+        displayLaTex(formula);
+    }
+    function displayLaTex(formula){
+        let elem = document.querySelector("#ruleApplication");
         let html = katex.renderToString(formula, {
             displayMode: true,
             macros: {

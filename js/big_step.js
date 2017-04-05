@@ -273,10 +273,6 @@ class Context {
         return `[${this.id}, ${strs.join(", ")}]`
     }
 
-    toTooltippedHTML(){
-        return `<a tabindex="0" data-container="body" title="${this.toValueHTML()}">${this.toShortHTMLString()}</a>`
-    }
-
     toValueHTML(){
         let strs = [];
         for (let key of this.map.keys()) {
@@ -290,11 +286,31 @@ class Context {
     }
 
     toShortHTMLString(){
-        return `<var>σ<sub>${this.id}</sub></var>`
+        return `<span onmouseleave="clearRule()" onmouseenter="${this.toDisplayJSCode()}"><var>σ</var><sub>${this.id}</sub></span>`
+    }
+
+    toShortHTMLStringWoJS(){
+        return `<var>σ</var><sub>${this.id}</sub>`
     }
 
     toLaTex(){
         return `\\sigma_${this.id}`
+    }
+
+    toLongLaTex(){
+        return `${this.toLaTex()} = ${this.toValueLaTex()}`
+    }
+
+    toValueLaTex(){
+        let strs = [];
+        for (let key of this.map.keys()) {
+            strs.push(`${key} \\\\mapsto ${this.map.get(key).toHTML()}`)
+        }
+        return strs.length === 0 ? "\\emptyset" : `[${strs.join(",~")}]`
+    }
+
+    toDisplayJSCode(){
+        return `displayLaTex('${this.toLongLaTex().replace("\\", "\\\\")}')`
     }
 
     /**
@@ -774,9 +790,9 @@ class ComEvalLine extends EvalLine {
     }
 
     toString(){
-        let ret = `〈<code>${this.program.toHTML()}</code>, ${this.startState.toTooltippedHTML()}〉`
+        let ret = `〈<code>${this.program.toHTML()}</code>, ${this.startState.toShortHTMLString()}〉`
         if (this.endState instanceof Context) {
-            return `${ret} ⇓ ${this.endState.toTooltippedHTML()}`
+            return `${ret} ⇓ ${this.endState.toShortHTMLString()}`
         }
         return ret;
     }

@@ -34,7 +34,7 @@
         ]);
         var keywords = wordRE(["not",
             "true", "false", "end", "if", "then", "else", "do",
-            "while", "var", ":=", "->", "→"]);
+            "while", "var", ":=", "->", "→", "↦"]);
 
         var indentTokens = wordRE(["if","repeat","do", "\\(", "{"]);
         var dedentTokens = wordRE(["end", "\\)", "}"]);

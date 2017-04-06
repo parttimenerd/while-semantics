@@ -128,9 +128,6 @@ function prettyPrint(obj) {
 }
 
 function arithmeticValue(aexp, context) {
-    if (!(aexp instanceof Aexp)){
-        throw "not an Aexp"
-    }
     return aexp.eval(context);
 }
 
@@ -147,7 +144,14 @@ function booleanValue(bexp, context) {
     return bexp.eval(context);
 }
 
+__max_id = 0;
+
 class ASTNode {
+
+    constructor(){
+        this._id = __max_id++;
+    }
+
     /** @return {String} */
     toHTML(){
         console.error("not implemented");
@@ -158,10 +162,76 @@ class ASTNode {
     visit(visitor){
         throw "undefined"
     }
+
+    /**
+     * @return {String}
+     */
+    toLaTex(){
+        return this.toHTML();
+    }
+
+    /**
+     * Wraps all nodes that are in the passed list
+     * Returns the wrapped version.
+     *
+     * @param {Number[]} nodesToWrapIds
+     * @param {Function<ASTNode, ASTNode>} wrapper
+     * @return {ASTNode}
+     */
+    wrapNodes(nodesToWrap, wrapper){
+        return this._wrapNodes(Array.from(nodesToWrap.map(x => x._id)), wrapper);
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper){
+        if (nodesToWrapIds.includes(this._id)){
+            return wrapper(this);
+        }
+        return this;
+    }
+
+    _wrapNodesHelper(nodesToWrapIds, wrapper, children, constructor, additionalParams = []){
+        let wrappedChildren = [];
+        for (let obj of children) {
+            wrappedChildren.push(obj._wrapNodes(nodesToWrapIds, wrapper));
+        }
+        let args = [null].concat(wrappedChildren).concat(additionalParams);
+        let newSelf = new (Function.prototype.bind.apply(constructor, args));
+        newSelf._id = this._id;
+        if (nodesToWrapIds.includes(this._id)) {
+            return wrapper(newSelf);
+        }
+        return newSelf;
+    }
 }
 
 class Expression extends ASTNode {
+}
 
+
+class HighlightNode extends ASTNode {
+    constructor(node, _htmlClass = "highlight"){
+        super();
+        this.node = node;
+        this.htmlClass = _htmlClass;
+    }
+    toHTML(){
+        return `<span class="${this.htmlClass}">${this.node.toHTML()}</span>`
+    }
+    toLaTex(){
+        return this.node.toLaTex();
+    }
+    eval(_context=null){
+        return this.node.eval(_context);
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return this._wrapNodesHelper(nodesToWrapIds, wrapper, [this.node], HighlightNode, [this.htmlClass]);
+    }
+
+
+    visit(visitor) {
+        return this.node.visit(visitor);
+    }
 }
 
 class Aexp extends Expression {
@@ -172,6 +242,13 @@ class Aexp extends Expression {
      */
     eval(context){
 
+    }
+
+    /**
+     * @return {String}
+     */
+    toLaTex(){
+        return this.toHTML();
     }
 }
 
@@ -285,8 +362,12 @@ class Context {
         return `σ${this.id}`
     }
 
+    get htmlClass(){
+        return "context" + this.id;
+    }
+
     toShortHTMLString(){
-        return `<span onmouseleave="clearRule()" onmouseover="${this.toDisplayJSCode()}"><var>σ</var>${this._subbedId()}</span>`
+        return `<span class="context ${this.htmlClass} highlightable" onmouseleave="clearRule(); window.isContextUnderFocus = false; unhighlightElems('.${this.htmlClass}', 'highlight-context');" onmouseover="window.isContextUnderFocus = true; highlightElems('.${this.htmlClass}', 'highlight-context'); ${this.toDisplayJSCode()}"><var>σ</var>${this._subbedId()}</span>`
     }
 
     toShortHTMLStringWoJS(){
@@ -377,10 +458,18 @@ class BinaryAexp extends Aexp {
         return `${this.left.toHTML()} ${this.operator} ${this.right.toHTML()}`
     }
 
+    toLaTex(){
+        return `${this.left.toLaTex()} ${this.operator} ${this.right.toLaTex()}`
+    }
+
     visit(visitor){
         this.left.visit(visitor);
         this.right.visit(visitor);
         return visitor.visitBinaryAexp(this)
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return super._wrapNodes(nodesToWrapIds, wrapper, [this.left, this.right], this.constructor);
     }
 }
 
@@ -442,12 +531,20 @@ class SingleAexp extends Aexp {
         return "(" + this.expression.toHTML() + ")"
     }
 
+    toLaTex(){
+        return "(" + this.expression.toLaTex() + ")"
+    }
+
     visit(visitor){
         return this.expression.visit(visitor);
     }
 
     eval(context){
         return this.expression.eval(context);
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return super._wrapNodes(nodesToWrapIds, wrapper, [this.expression], this.constructor);
     }
 }
 
@@ -481,7 +578,11 @@ class BinaryBexp extends Bexp {
     }
 
     toHTML(){
-        return `${this.left.toHTML()} ${this.operator} ${this.right.toHTML()}`
+        return `${this.left.toHTML()} ${this.operator.replace(/</g, "&lt;").replace(/>/g, "&gt;")} ${this.right.toHTML()}`
+    }
+
+    toLaTex(){
+        return `${this.left.toLaTex()}~${this.operator.replace(/&/g, "\\&")}~${this.right.toLaTex()}`
     }
 
     visit(visitor){
@@ -586,6 +687,10 @@ class Not extends Bexp {
         return "not " + this.expression.toHTML()
     }
 
+    toLaTex(){
+        return "not " + this.expression.toLaTex();
+    }
+
     visit(visitor){
         this.expression.visit(visitor);
         return visitor.visitNot(this)
@@ -611,12 +716,20 @@ class SingleBexp extends Bexp {
         return "(" + this.expression.toHTML() + ")"
     }
 
+    toLaTex(){
+        return "(" + this.expression.toLaTex() + ")"
+    }
+
     visit(visitor){
         return this.expression.visit(visitor);
     }
 
     eval(context){
         return this.expression.eval(context);
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return super._wrapNodes(nodesToWrapIds, wrapper, [this.expression], this.constructor);
     }
 }
 
@@ -642,6 +755,10 @@ class Or extends BinaryBexp {
     }
 }
 
+function shouldComBeWrappedInParentheses(com){
+    return com instanceof Seq || com instanceof If || com instanceof While;
+}
+
 class Com extends ASTNode {
 
     constructor(){
@@ -650,10 +767,18 @@ class Com extends ASTNode {
 
     /** @param {Com} com */
     _comToHTML(com){
-        if (com instanceof Seq || com instanceof If || com instanceof While){
+        if (shouldComBeWrappedInParentheses(com)){
             return "(" + com.toHTML() + ")";
         }
         return com.toHTML();
+    }
+
+    /** @param {Com} com */
+    _comToLaTex(com){
+        if (shouldComBeWrappedInParentheses(com)){
+            return "(" + com.toLaTex() + ")";
+        }
+        return com.toLaTex();
     }
 }
 
@@ -688,10 +813,19 @@ class Ass extends Com {
         return `${this.var.name} := ${this.expr.toHTML()}`
     }
 
+    toLaTex(){
+        return `${this.var.name} := ${this.expr.toLaTex()}`
+    }
+
     visit(visitor){
         this.var.visit(visitor);
         this.expr.visit(visitor);
         return visitor.visitAss(this)
+    }
+
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return this._wrapNodesHelper(nodesToWrapIds, wrapper, [this.var, this.expr], Ass);
     }
 }
 
@@ -713,11 +847,19 @@ class LocalAss extends Com {
         return `{var ${this.var.name} = ${this.expr.toHTML()}; ${this.com.toHTML()}}`
     }
 
+    toLaTex(){
+        return `\\{var ${this.var.name} = ${this.expr.toLaTex()}; ${this.com.toLaTex()}\\}`
+    }
+
     visit(visitor){
         this.var.visit(visitor);
         this.expr.visit(visitor);
         this.com.visit(visitor);
         return visitor.visitLocalAss(this)
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return this._wrapNodesHelper(nodesToWrapIds, wrapper, [this.var, this.expr, this.com], LocalAss);
     }
 }
 
@@ -737,10 +879,18 @@ class Seq extends Com {
         return `${this.com1.toHTML()}; ${this.com2.toHTML()}`
     }
 
+    toLaTex(){
+        return `${this.com1.toLaTex()}; ${this.com2.toLaTex()}`
+    }
+
     visit(visitor){
         this.com1.visit(visitor);
         this.com2.visit(visitor);
         return visitor.visitSeq(this);
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return this._wrapNodesHelper(nodesToWrapIds, wrapper, [this.com1, this.com2], Seq);
     }
 }
 
@@ -758,11 +908,25 @@ class SingleCom extends Com {
     }
 
     toHTML(){
-        return `(${this.com.toHTML()})`
+        if (shouldComBeWrappedInParentheses(this.com)) {
+            return `(${this.com.toHTML()})`
+        }
+        return this.com.toHTML();
+    }
+
+    toLaTex(){
+        if (shouldComBeWrappedInParentheses(this.com)) {
+            return `(${this.com.toLaTex()})`
+        }
+        return this.com.toLaTex();
     }
 
     visit(visitor){
         return this.com.visit(visitor);
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return this._wrapNodesHelper(nodesToWrapIds, wrapper, [this.com], SingleCom);
     }
 }
 
@@ -781,7 +945,11 @@ class If extends Com {
     }
 
     toHTML(){
-        return `if (${this.cond.toHTML()}) then ${this._comToHTML(this.com1)} else ${this._comToHTML(this.com1)}`
+        return `if (${this.cond.toHTML()}) then ${this._comToHTML(this.com1)} else ${this._comToHTML(this.com2)}`
+    }
+
+    toLaTex(){
+        return `if (${this.cond.toLaTex()}) then ${this._comToLaTex(this.com1)} else ${this._comToLaTex(this.com2)}`
     }
 
     visit(visitor){
@@ -789,6 +957,10 @@ class If extends Com {
         this.com1.visit(visitor);
         this.com2.visit(visitor);
         return visitor.visitIf(this);
+    }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return this._wrapNodesHelper(nodesToWrapIds, wrapper, [this.cond, this.com1, this.com2], If);
     }
 }
 
@@ -808,14 +980,34 @@ class While extends Com {
         return `while (${this.cond.toHTML()}) do ${this._comToHTML(this.body)}`
     }
 
+    toLaTex(){
+        console.log(this.cond.toLaTex())
+        return `while (${this.cond.toLaTex()}) do ${this._comToLaTex(this.body)}`
+    }
+
     visit(visitor){
         this.cond.visit(visitor);
         this.body.visit(visitor);
         return visitor.visitWhile(this)
     }
+
+    _wrapNodes(nodesToWrapIds, wrapper) {
+        return this._wrapNodesHelper(nodesToWrapIds, wrapper, [this.cond, this.body], While);
+    }
 }
 
+_evalLineMaxId = 0;
+
 class EvalLine {
+
+    constructor(){
+        this.id = _evalLineMaxId++;
+    }
+
+    get htmlId(){
+        return "line" + this.id;
+    }
+
     toString(){}
 
     toHTML(){}
@@ -839,7 +1031,7 @@ class BoolEvalLine extends EvalLine {
     }
 
     toString(){
-        return `B[<code>${this.bexpr.toHTML()}</code>] ${this.context.toShortHTMLString()} = ${this.expValue.toHTML()}`
+        return `<span id="${this.htmlId}">B[<code>${this.bexpr.toHTML()}</code>] ${this.context.toShortHTMLString()} = ${this.expValue.toHTML()}</span>`
     }
 
     toHTML(){
@@ -866,7 +1058,7 @@ class AssActualValueEvalLine extends EvalLine {
     }
 
     toString(){
-        return `${this.context2.toShortHTMLString()} = ${this.context1.toShortHTMLString()}[${this.var.toHTML()} ↦ ${this.value.toHTML()}]`
+        return `<span id="${this.htmlId}">${this.context2.toShortHTMLString()} = ${this.context1.toShortHTMLString()}[${this.var.toHTML()} ↦ ${this.value.toHTML()}]</span>`
     }
 
     toHTML(){
@@ -890,28 +1082,25 @@ class ComEvalLine extends EvalLine {
      * @param {Context} endState
      * @param {Com} _actualCom
      */
-    constructor(program, startState, endState = null, _actualCom = null){
+    constructor(program, startState, endState = null, _actualCom = null, _displayCom = null){
         super();
         this.program = program;
         this.startState = startState;
         this.endState = endState;
         this.actualCom = _actualCom;
+        this.displayCom = _displayCom === null ? this.program : _displayCom;
     }
 
     copy(){
-        return new ComEvalLine(this.program, this.startState, this.endState);
-    }
-
-    toString(){
-        let ret = `〈<code>${this.program.toHTML().replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code>, ${this.startState.toShortHTMLString()}〉`
-        if (this.endState instanceof Context) {
-            return `${ret} ⇓ ${this.endState.toShortHTMLString()}`
-        }
-        return ret;
+        return new ComEvalLine(this.program, this.startState, this.endState, this.actualCom, this.displayCom);
     }
 
     toHTML(){
-        return this.toString()
+        let ret = `〈<code>${this.displayCom.toHTML()}</code>, ${this.startState.toShortHTMLString()}〉`
+        if (this.endState instanceof Context) {
+            return `${ret} ⇓ ${this.endState.toShortHTMLString()}`
+        }
+        return `<span id="${this.htmlId}">${ret}</span>`;
     }
 }
 
@@ -975,21 +1164,30 @@ class EvalStep {
         return new EvalStep(this.appliedRule, this.currentEvalLine.copy(), new Array(this.resultingSteps.map(x => x.copy())));
     }
 
-    toHTML() {
+    toHTML(_prevHTMLId=-1) {
         __random_num += 1;
         let id = __random_num;
+        let eventHandlers = "";
+        const cssLineClass = `bs_line_${this.currentEvalLine.htmlId}`;
         if (this.appliedRule instanceof RuleApplication) {
         eval(`     window.stepFunc${id} = function() {
 ${this.appliedRule.toCallJS()};
 };`);
-    } else {
+            const highlightIds = ["'" + this.currentEvalLine.htmlId + "'"];
+            if (_prevHTMLId !== -1){
+                highlightIds.push("'" + _prevHTMLId + "'");
+            }
+            const onmouseleave = `clearRule(); unhighlightPrevAndCur(${highlightIds.join(",")}); unhighlightElems('.${cssLineClass}');`;
+            const onmouseover = `if (!window.isContextUnderFocus) {window.stepFunc${id}(); highlightPrevAndCur(${highlightIds.join(",")}); highlightElems('.${cssLineClass}');}`;
+            eventHandlers = `onmouseleave="${onmouseleave}" onmouseover="${onmouseover}"`;
+        } else {
         }
         return `
 <table style="margin: 0 auto;">
     <tr>
-        ${this.resultingSteps.length > 0 ? this.resultingSteps.map(x => `<td>${x.toHTML()}</td>`).join("") : "<td></td>"}
-        <td class="rulename" rowspan="2"><div class="rulename" onmouseleave='clearRule()' onmouseenter="window.stepFunc${id}()">${this.appliedRule.toString()}</div></td></tr>
-    <tr><td class="${!(this.currentEvalLine instanceof  ComEvalLine) ? "" : "conc"}" colspan="${Math.max(1, this.resultingSteps.length)}">${this.currentEvalLine.toHTML()}</td></tr>
+        ${this.resultingSteps.length > 0 ? this.resultingSteps.map(x => `<td>${x.toHTML(this.currentEvalLine.htmlId)}</td>`).join("") : "<td></td>"}
+        <td class="rulename" rowspan="2"><div class="rulename" ${eventHandlers}>${this.appliedRule.toString()}</div></td></tr>
+    <tr><td class="${!(this.currentEvalLine instanceof  ComEvalLine) ? "" : "conc"} ${cssLineClass}" colspan="${Math.max(1, this.resultingSteps.length)}" ${eventHandlers}><span class="${cssLineClass}">${this.currentEvalLine.toHTML()}</span></td></tr>
 </table>
 `
     }
@@ -1074,7 +1272,7 @@ class EvalBigSemantic {
         return new EvalStep(
             new RuleApplication("Ass",
                 [["x", com.var.name],
-                ["a", verb(com.expr.toHTML())],
+                ["a", verb(com.expr.toLaTex())],
                 ["\\sigma", startContext.toLaTex()]]),
             new ComEvalLine(com, startContext, newCon), [
                 new AssActualValueEvalLine(startContext, newCon, com.var, newCon.getValue(com.var))])
@@ -1091,7 +1289,7 @@ class EvalBigSemantic {
         let com2Line = this._dispatch(com.com2, com1Line.currentEvalLine.endState);
         var endContext = com2Line.currentEvalLine.endState;
         return new EvalStep(
-            new RuleApplication("Seq", [["c_0", verb(com.com1.toHTML())], ["c_1", verb(com.com2.toHTML())],
+            new RuleApplication("Seq", [["c_0", verb(com.com1.toLaTex())], ["c_1", verb(com.com2.toLaTex())],
                                         ["\\sigma", startContext.toLaTex()],
                                         ["\\sigma'", com1Line.currentEvalLine.endState.toLaTex()],
                                         ["\\sigma''", com2Line.currentEvalLine.endState.toLaTex()]]),
@@ -1109,7 +1307,7 @@ class EvalBigSemantic {
         let chosenCom = condVal ? com.com1 : com.com2;
         let chosenComLine = this._dispatch(chosenCom, startContext);
         let rule = new Rule(condVal ? "IfTT" : "IfFF");
-        return new EvalStep(new RuleApplication(rule, [["c_0", verb(com.com1.toHTML())], ["c_1", verb(com.com2.toHTML())],
+        return new EvalStep(new RuleApplication(rule, [["c_0", verb(com.com1.toLaTex())], ["c_1", verb(com.com2.toLaTex())],
                 ["\\sigma", startContext.toLaTex()],
                 ["\\sigma'", chosenComLine.currentEvalLine.endState.toLaTex()]]),
             new ComEvalLine(com, startContext, chosenComLine.currentEvalLine.endState), [boolLine, chosenComLine])
@@ -1129,13 +1327,13 @@ class EvalBigSemantic {
             let firstBodyEval = this._dispatch(com.body, startContext);
             let nextWhileEval = this._dispatch(com, firstBodyEval.currentEvalLine.endState);
             return new EvalStep(new RuleApplication("WhileTT",
-                    [["b", verb(com.cond.toHTML())], ["c", verb(com.body.toHTML())], ["\\sigma", startContext.toLaTex()],
+                    [["b", verb(com.cond.toLaTex())], ["c", verb(com.body.toLaTex())], ["\\sigma", startContext.toLaTex()],
                     ["\\sigma'", firstBodyEval.currentEvalLine.endState.toLaTex()],
                     ["\\sigma''", nextWhileEval.currentEvalLine.endState.toLaTex()]]),
                 new ComEvalLine(com, startContext, nextWhileEval.currentEvalLine.endState), [boolLine, firstBodyEval, nextWhileEval]);
         } else {
             return new EvalStep(new RuleApplication("WhileFF",
-                [["b", verb(com.cond.toHTML())], ["c", verb(com.body.toHTML())], ["\\sigma", startContext.toLaTex()]]),
+                [["b", verb(com.cond.toLaTex())], ["c", verb(com.body.toLaTex())], ["\\sigma", startContext.toLaTex()]]),
                 new ComEvalLine(com, startContext, startContext), [boolLine]);
         }
         //return new EvalStep(rule, new ComEvalLine(com, startContext, chosenComLine.currentEvalLine.endState), [boolLine, chosenComLine]);
@@ -1154,8 +1352,8 @@ class EvalBigSemantic {
         let endContext = comLine.currentEvalLine.endState.setImm(com.var, oldVal);
         return new EvalStep(
             new RuleApplication("Block",
-                [["x", com.var.name], ["a", verb(com.expr.toHTML())],
-                 ["c", verb(com.com.toHTML())],
+                [["x", com.var.name], ["a", verb(com.expr.toLaTex())],
+                 ["c", verb(com.com.toLaTex())],
                  ["\\sigma", startContext.toLaTex()],
                  ["\\sigma'", newContext.toLaTex()]]),
             new ComEvalLine(com, startContext, endContext), [comLine]);
@@ -1170,6 +1368,34 @@ class EvalBigSemantic {
         return this._dispatch(com.com, startContext);
     }
 }
+
+function highlightElems(selector, cssClass="highlight-visible"){
+    $(selector).addClass(cssClass);
+}
+
+function unhighlightElems(selector, cssClass="highlight-visible"){
+    $(selector).removeClass(cssClass);
+}
+
+/**
+ * Highlight the nodes with "highlight" or "highlight-prev" classes that belong to the elements whichs ids are passed.
+ */
+function highlightPrevAndCur(curId, prevId = null) {
+    if (prevId !== null) {
+        $(`#${prevId}`).find(".highlight-prev").addClass("highlight-prev-visible");
+    }
+    $(`#${curId}`).find(".highlight").addClass("highlight-visible");
+}
+
+function unhighlightPrevAndCur(curId, prevId = null) {
+    if (prevId !== null) {
+        $(`#${prevId}`).find(".highlight-prev").removeClass("highlight-prev-visible");
+    }
+    $(`#${curId}`).find(".highlight").removeClass("highlight-visible");
+}
+
+
+_step_max_id = 0;
 
 /**
  * A small step semantic evaluation step
@@ -1187,13 +1413,14 @@ class SSEvalStep {
         this.appliedRule = appliedRule;
         this.currentEvalLine = currentEvalLine;
         this.maxStepsReached = maxStepsReached;
+        this.id = _step_max_id++;
     }
 
     copy(){
         return new SSEvalStep(this.appliedRule, this.currentEvalLine.copy(), this.maxStepsReached);
     }
 
-    toHTML() {
+    toHTML(_prevHTMLId=-1) {
         __random_num += 1;
         let id = __random_num;
         if (this.appliedRule instanceof RuleApplication) {
@@ -1201,8 +1428,12 @@ class SSEvalStep {
 ${this.appliedRule.toCallJS()};
 };`);
         }
+        const highlightIds = ["'" + this.currentEvalLine.htmlId + "'"];
+        if (_prevHTMLId !== -1){
+            highlightIds.push("'" + _prevHTMLId + "'");
+        }
         return `
-    <div class="ss_step" onmouseleave='clearRule()' onmouseenter="window.stepFunc${id}()">
+    <div class="ss_step" onmouseleave="clearRule(); unhighlightPrevAndCur(${highlightIds.join(",")});" onmouseover="if (!window.isContextUnderFocus) {window.stepFunc${id}(); highlightPrevAndCur(${highlightIds.join(",")});}">
         <span class="ss_arrow">→<span class="sub">1</span></span>
         <span class="ss_eval_line">
             ${this.maxStepsReached ? `… maximum number of steps reached ` : this.currentEvalLine.toHTML()}
@@ -1231,9 +1462,9 @@ class SSEvalSteps {
         if (this.steps.length === 0) {
             tableLines.push([this.startLine.toHTML(), ""])
         } else {
-            tableLines.push([this.startLine.toHTML(), this.steps[0].toHTML()]);
+            tableLines.push([this.startLine.toHTML(), this.steps[0].toHTML(this.startLine.htmlId)]);
             for (let i = 1; i < this.steps.length; i++) {
-                tableLines.push(["", this.steps[i].toHTML()]);
+                tableLines.push(["", this.steps[i].toHTML(this.steps[i-1].currentEvalLine.htmlId)]);
             }
         }
         return `
@@ -1311,12 +1542,21 @@ class EvalSmallStepSemantic {
      *
      * @param {RuleApplication} appliedRule
      * @param {Com} actualCom
+     * @param {ASTNode[]} highlightedNodes
      * @param {Context} context
      * @param {Function<Com, Com>} surround
      */
-    _addStep(appliedRule, actualCom, context, surround) {
-        let step = new SSEvalStep(appliedRule, new ComEvalLine(surround(actualCom), context, null, actualCom));
+    _addStep(appliedRule, actualCom, highlightedNodes, context, surround) {
+        let step = new SSEvalStep(appliedRule, new ComEvalLine(surround(actualCom), context, null, actualCom,
+            surround(actualCom.wrapNodes(highlightedNodes, x => new HighlightNode(x)))));
         this.evalSteps.addStep(step);
+    }
+
+    _highlightPrev(nodes){
+        let endLine = this.evalSteps.endLine;
+        if (endLine !== undefined) {
+            endLine.displayCom = endLine.displayCom.wrapNodes(nodes, x => new HighlightNode(x, "highlight-prev"));
+        }
     }
 
     /**
@@ -1331,7 +1571,7 @@ class EvalSmallStepSemantic {
         }
         if (this.maxSteps <= this.steps){
             console.warn("Executed the maximum number of steps");
-            this._addStep(new RuleApplication("maxSteps", []), new Skip(), startContext, x => x);
+            this._addStep(new RuleApplication("maxSteps", []), new Skip(), [com], startContext, x => x);
             return;
         }
         this.steps +=1;
@@ -1362,10 +1602,12 @@ class EvalSmallStepSemantic {
      */
     _visitAss(com, startContext, surround){
         let newCon = startContext.setImm(com.var, arithmeticValue(com.expr, startContext));
+        this._highlightPrev([com]);
+        let newCom = new Skip();
         this._addStep(new RuleApplication("AssSS",
             [["x", com.var.name],
-                ["a", verb(com.expr.toHTML())],
-                ["\\sigma", startContext.toLaTex()]]), new Skip(), newCon, surround)
+                ["a", verb(com.expr.toLaTex())],
+                ["\\sigma", startContext.toLaTex()]]), newCom, [newCom], newCon, surround)
     }
 
     /**
@@ -1375,44 +1617,49 @@ class EvalSmallStepSemantic {
      */
     _visitSeq(com, startContext, surround){
         if (isSkip(com.com1)){ // Seq2
+            this._highlightPrev([com.com2]);
             this._addStep(
                 new RuleApplication("Seq2SS",
-                    [["c", verb(com.com2.toHTML())],
-                    ["\\sigma", startContext.toLaTex()]]), com.com2, startContext, surround);
+                    [["c", verb(com.com2.toLaTex())],
+                    ["\\sigma", startContext.toLaTex()]]), com.com2, [com.com2], startContext, surround);
+
             this._dispatch(com.com2, startContext, surround);
         } else {
             this._dispatch(com.com1, this.evalSteps.endState, x => surround(new Seq(x, com.com2)));
             // TODO: should the Seq1SS rule really be omitted?
-            /*this._addStep(
+            /*
+            this._highlightPrev([com.com2]);
+            this._addStep(
                 new RuleApplication("Seq1SS", [
-                        ["c_0", verb(com.com1.toHTML())],
-                        ["c_1", verb(com.com2.toHTML())],
+                        ["c_0", verb(com.com1.toLaTex())],
+                        ["c_1", verb(com.com2.toLaTex())],
                         ["\\sigma", startContext.toLaTex()],
-                        ["c_0''", this.evalSteps.endLine.actualCom.toHTML()],
+                        ["c_0''", this.evalSteps.endLine.actualCom.toLaTex()],
                         ["\\sigma'", this.evalSteps.endState.toLaTex()]]),
-                com.com2, this.evalSteps.endState, surround);
-                */
-            if (isSkip(com.com2)){
-                this._dispatch(com.com2, this.evalSteps.endState, surround);
-            } else {
+                com.com2, [com.com2], this.evalSteps.endState, surround);
+            */
+            //if (isSkip(com.com2)){
+            //    this._dispatch(com.com2, this.evalSteps.endState, surround);
+            //} else {
                 this._dispatch(new Seq(new Skip(), com.com2), this.evalSteps.endState, surround);
-            }
+            //}
         }
     }
 
     /**
-     * @param {Seq} com
+     * @param {If} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
      */
     _visitIf(com, startContext, surround){
         let condVal = booleanValue(com.cond, startContext).value;
         let chosenCom = condVal ? com.com1 : com.com2;
+        this._highlightPrev([com.cond, chosenCom]);
         let rule = new Rule(condVal ? "IfTTSS" : "IfFFSS");
         this._addStep(new RuleApplication(rule,
-                [["c_0", verb(com.com1.toHTML())], ["c_1", verb(com.com2.toHTML())],
+                [["c_0", verb(com.com1.toLaTex())], ["c_1", verb(com.com2.toLaTex())],
                  ["\\sigma", startContext.toLaTex()]]),
-                chosenCom, startContext, surround);
+                chosenCom, [chosenCom], startContext, surround);
         this._dispatch(chosenCom, startContext, surround);
     }
 
@@ -1423,9 +1670,10 @@ class EvalSmallStepSemantic {
      */
     _visitWhile(com, startContext, surround){
         let newCom = new If(com.cond, new Seq(com.body, com), new Skip());
+        this._highlightPrev([com]);
         this._addStep(new RuleApplication("WhileSS",
-            [["b", com.cond.toHTML()], ["c", verb(com.body.toHTML())], ["\\sigma", startContext.toLaTex()]]),
-            newCom, startContext, surround);
+            [["b", com.cond.toLaTex()], ["c", verb(com.body.toLaTex())], ["\\sigma", startContext.toLaTex()]]),
+            newCom, [newCom], startContext, surround);
         this._dispatch(newCom, startContext, surround);
     }
 
@@ -1435,18 +1683,20 @@ class EvalSmallStepSemantic {
      * @param {Function<Com, Com>} surround
      */
     _visitLocalAss(com, startContext, surround){
+        this._highlightPrev([com]);
         let oldVal = startContext.getValue(com.var);
         var newCom;
         if (oldVal === undefined){
             newCom = new Seq(new Ass(com.var, com.expr), com.com);
+            newCom = new Seq(new Ass(new HighlightNode(com.var), new HighlightNode(com.expr)), new HighlightNode(com.com));
             this._addStep(new RuleApplication("Block1SS",
-                [["x", com.var.name], ["a", com.expr.toHTML()], ["c", com.com.toHTML()]], ["\\sigma", startContext.toLaTex()]),
-                newCom, startContext, surround);
+                [["x", com.var.name], ["a", com.expr.toLaTex()], ["c", com.com.toLaTex()]], ["\\sigma", startContext.toLaTex()]),
+                newCom, [newCom], startContext, surround);
         } else {
             newCom = new Seq(new Seq(new Ass(com.var, com.expr), com.com), new Ass(com.var, oldVal));
             this._addStep(new RuleApplication("Block2SS",
-                [["x", com.var.name], ["a", com.expr.toHTML()], ["c", com.com.toHTML()],  ["\\sigma", startContext.toLaTex()], ["n", oldVal.toHTML()]]),
-                newCom, startContext, surround);
+                [["x", com.var.name], ["a", com.expr.toLaTex()], ["c", com.com.toLaTex()],  ["\\sigma", startContext.toLaTex()], ["n", oldVal.toLaTex()]]),
+                newCom, [newCom], startContext, surround);
         }
         this._dispatch(newCom, startContext, surround);
     }

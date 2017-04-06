@@ -46,6 +46,23 @@ div.rulename {
     font-size: smaller;
 }
 
+.highlight-visible,
+.highlight-visible code,
+.highlight-prev-visible {
+    color: blue !important;
+}
+.highlight-visible.conc {
+    border-color: blue !important;
+}
+
+.highlight-context {
+    color: orange !important;
+}
+
+.rulename:hover {
+
+}
+
 /** Source: http://stackoverflow.com/a/16338823 */
 td {
     text-align:center;

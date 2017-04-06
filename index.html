@@ -168,6 +168,7 @@
         elem.innerHTML = renderLaTex(formulaArr[0]) + `<div class="instantiated-vars">${renderLaTex(formulaArr[1])}</div>`;
         renderMathInElement(elem);
     }
+
     function renderLaTex(formula){
         return katex.renderToString(formula.replace("\\\\mapsto", "\\mapsto"), {
             displayMode: true,
@@ -203,7 +204,7 @@
         lineWrapping: true,
         readOnly: true
     });
-    document.getElementById("maxSteps").value = isNaN(Number(Cookies.get("maxSteps"))) ? 50 : Cookies.get("maxSteps");
+    document.getElementById("maxSteps").value = isNaN(Number(Cookies.get("maxSteps"))) ? 20 : Cookies.get("maxSteps");
     resultContextEditor.setSize("90%","90%");
     initParser();
     sourceEditor.on("change", function() {

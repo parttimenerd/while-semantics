@@ -1186,10 +1186,23 @@ ${this.appliedRule.toCallJS()};
 <table style="margin: 0 auto;">
     <tr>
         ${this.resultingSteps.length > 0 ? this.resultingSteps.map(x => `<td>${x.toHTML(this.currentEvalLine.htmlId)}</td>`).join("") : "<td></td>"}
-        <td class="rulename" rowspan="2"><div class="rulename" ${eventHandlers}>${this.appliedRule.toString()}</div></td></tr>
+        <td class="rulename" rowspan="2"><div class="rulename ${cssLineClass}" ${eventHandlers}>${this.appliedRule.toString()}</div></td></tr>
     <tr><td class="${!(this.currentEvalLine instanceof  ComEvalLine) ? "" : "conc"} ${cssLineClass}" colspan="${Math.max(1, this.resultingSteps.length)}" ${eventHandlers}><span class="${cssLineClass}">${this.currentEvalLine.toHTML()}</span></td></tr>
 </table>
 `
+    }
+}
+
+class EvalResult {
+    /**
+     * @param tree
+     * @param {Context} resultContext
+     * @param {Boolean} maxStepsReached
+     */
+    constructor(tree, resultContext, maxStepsReached){
+        this.tree = tree;
+        this.context = resultContext;
+        this.maxStepsReached = maxStepsReached;
     }
 }
 
@@ -1225,9 +1238,11 @@ class EvalBigSemantic {
         this.steps = 0;
     }
 
-    /** @return {EvalStep} */
+    /** @return {EvalResult} */
     eval(){
-        return this._dispatch(this.program, this.startContext)
+        this.maxStepsReached = false;
+        const res = this._dispatch(this.program, this.startContext);
+        return new EvalResult(res, res.currentEvalLine.endState, this.maxStepsReached);
     }
 
     /**
@@ -1238,7 +1253,7 @@ class EvalBigSemantic {
      */
     _dispatch(com, startContext){
         if (this.maxSteps <= this.steps){
-            console.error("Executed the maximum number of steps");
+            this.maxStepsReached = true;
             return new EvalStep(new RuleApplication("maxSteps", []), new ComEvalLine(com, startContext, startContext));
         }
         this.steps +=1;
@@ -1531,11 +1546,12 @@ class EvalSmallStepSemantic {
         this.evalSteps = null
     }
 
-    /** @return {SSEvalSteps} */
+    /** @return {EvalResult} */
     eval(){
+        this.maxStepsReached = false;
         this.evalSteps = new SSEvalSteps(new ComEvalLine(this.program, this.startContext));
         this._dispatch(this.program, this.startContext, x => x);
-        return this.evalSteps;
+        return new EvalResult(this.evalSteps, this.evalSteps.endState, this.maxStepsReached);
     }
 
     /**
@@ -1570,7 +1586,7 @@ class EvalSmallStepSemantic {
             return;
         }
         if (this.maxSteps <= this.steps){
-            console.warn("Executed the maximum number of steps");
+            this.maxStepsReached = this;
             this._addStep(new RuleApplication("maxSteps", []), new Skip(), [com], startContext, x => x);
             return;
         }

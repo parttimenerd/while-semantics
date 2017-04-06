@@ -231,15 +231,21 @@
                 resultContextEditor.setValue(PEGUtil.errorMessage(parsed.error, true));
                 return;
             }
-            var result;
+            /**
+             * @type EvalResult
+             */
+            let result;
             if (isInBigStepMode()) {
                 result = new EvalBigSemantic(parsed.ast, con, maxSteps).eval();
-                resultContextEditor.setValue(result.currentEvalLine.endState.toValueHTML());
             } else {
                 result = new EvalSmallStepSemantic(parsed.ast, con, maxSteps).eval();
-                resultContextEditor.setValue(result.endState.toValueHTML());
             }
-            document.getElementById("result").innerHTML = result.toHTML();
+            if (result.maxStepsReached){
+                resultContextEditor.setValue("Maximum number of execution steps reached.");
+            } else {
+                resultContextEditor.setValue(result.context.toValueHTML());
+            }
+            document.getElementById("result").innerHTML = result.tree.toHTML();
         } catch (e){
             console.error(e);
             resultContextEditor.setValue(e instanceof Error ? e.message : e)

@@ -1515,8 +1515,8 @@ rules["Seq2SS"] = new Rule("Seq2",`${acs("\\mathtt{skip;}~c", "", false)} \\step
 rules["IfTTSS"] = new Rule("IfTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{tt}}{${acs("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", false)} \\step ${acs("c_0", "", false)}}`);
 rules["IfFFSS"] = new Rule("IfTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{ff}}{${acs("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", false)} \\step ${acs("c_1", "", false)}}`);rules["WhileFFSS"] = new Rule("WhileFF", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{ff}}{${ac("\\mathtt{while~(} b \\mathtt{)~do~} c", "", "", false)}}`);
 rules["WhileSS"] = new Rule("While", `${acs("\\mathtt{while~(} b \\mathtt{)~do~} c", "", false)} ${acs("\\mathtt{if ~(} b \\mathtt{)~then~(}~c~\\mathtt{;~while~(} b \\mathtt{)~do~} c \\mathtt{)~else~skip}", "", false)}`);
-rules["Block1SS"] = new Rule("Block1", `\\frac{\\forall a': [x \\mapsto a'] \\notin \\sigma}{${acs("\\mathtt{\\{~var~} x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{~\\}}", "", false)} \\step ${acs("x \\mathtt{~=~} a \\mathtt{;~}c", "", false)}}`);
-rules["Block2SS"] = new Rule("Block2", `\\frac{\\exists a': [x \\mapsto a'] \\in \\sigma \\land \\mathcal{A}[a'] = n}{${acs("\\mathtt{\\{~var~} x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{~\\}}", "", false)} \\step ${acs("x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{;~} x \\mathtt{~=~} n", "", false)}}`);
+rules["Block1SS"] = new Rule("Block1", `\\frac{${acs("c", "[x \\mapsto A [ a ] \\sigma ]", false)} \\step ${acs("c'", "'", false)}}{${acs("\\mathtt{\\{~var~} x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{~\\}}", "", false)} \\step ${acs("\\mathtt{var~} x \\mathtt{~=~} \\mathcal{N}^{-1} [\\sigma'(x)] \\mathtt{;~}c' \\mathtt{\\}}", "'[x \\mapsto \\sigma(x)]", false)}}`);
+rules["Block2SS"] = new Rule("Block2", `${acs("\\mathtt{\\{~var~} x \\mathtt{~=~} a \\mathtt{;~skip~\\}}", "", false)} \\step ${acs("skip", "")}`);
 
 
 /**
@@ -1700,22 +1700,27 @@ class EvalSmallStepSemantic {
      * @param {Function<Com, Com>} surround
      */
     _visitLocalAss(com, startContext, surround){
-        this._highlightPrev([com]);
-        let oldVal = startContext.getValue(com.var);
-        var newCom;
-        if (oldVal === undefined){
-            newCom = new Seq(new Ass(com.var, com.expr), com.com);
-            newCom = new Seq(new Ass(new HighlightNode(com.var), new HighlightNode(com.expr)), new HighlightNode(com.com));
-            this._addStep(new RuleApplication("Block1SS",
-                [["x", com.var.name], ["a", com.expr.toLaTex()], ["c", com.com.toLaTex()]], ["\\sigma", startContext.toLaTex()]),
-                newCom, [newCom], startContext, surround);
+        this._highlightPrev([com.com]);
+        let baseInsts =             [["x", com.var.name], ["a", com.expr.toLaTex()], ["\\sigma", startContext.toLaTex()]];
+        if (isSkip(com.com)){
+            this._highlightPrev([com]);
+            this._addStep(new RuleApplication("Block2SS", baseInsts), com.com, [com.com], startContext, surround);
         } else {
-            newCom = new Seq(new Seq(new Ass(com.var, com.expr), com.com), new Ass(com.var, oldVal));
-            this._addStep(new RuleApplication("Block2SS",
-                [["x", com.var.name], ["a", com.expr.toLaTex()], ["c", com.com.toLaTex()],  ["\\sigma", startContext.toLaTex()], ["n", oldVal.toLaTex()]]),
-                newCom, [newCom], startContext, surround);
+            let oldVal = startContext.getValue(com.var);
+            let val = arithmeticValue(com.expr, startContext);
+            let alteredContext = startContext.setImm(com.var, val);
+            this._dispatch(com.com, alteredContext, x => surround(new LocalAss(com.var, com.expr, x)));
+            let lastLine = this.evalSteps.endLine;
+            this._highlightPrev([lastLine.displayCom]);
+            let newCom = new LocalAss(com.var, lastLine.startState.getValue(com.var), lastLine.actualCom);
+            newCom._id = com._id;
+            let resetContext = lastLine.startState.setImm(com.var, oldVal);
+            this._addStep(new RuleApplication("Block1SS",
+                [["x", com.var.name], ["a", com.expr.toLaTex()], ["c", com.com.toLaTex()], ["\\sigma", startContext.toLaTex()],
+                ["c'", verb(lastLine.actualCom.toLaTex())], ["\\sigma'", lastLine.startState.toLaTex()]]),
+                newCom, [newCom], resetContext, surround);
+            this._dispatch(newCom, resetContext, surround);
         }
-        this._dispatch(newCom, startContext, surround);
     }
 
     /**

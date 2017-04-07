@@ -170,6 +170,10 @@ class ASTNode {
         return this.toHTML();
     }
 
+    toString(){
+        return this.toLaTex();
+    }
+
     /**
      * Wraps all nodes that are in the passed list
      * Returns the wrapped version.
@@ -256,10 +260,15 @@ class Num extends Aexp {
     constructor(value){
         super();
         this.value = value;
+        this.isUndefined = isNaN(value);
     }
 
     toHTML(){
-        return String(this.value);
+        return this.isUndefined ? "⊥" : String(this.value);
+    }
+
+    toLaTex(){
+        return this.isUndefined ? "\\bot" : String(this.value);
     }
 
     visit(visitor){
@@ -323,7 +332,18 @@ class Context {
      * @return {Number}
      */
     getValue(_var){
-        return this.map.get(_var instanceof Var ? _var.name : _var)
+        if (this.contains(_var)) {
+            return this.map.get(this._varName(_var))
+        }
+        return new Num(NaN);
+    }
+
+    contains(_var){
+        return this.map.has(this._varName(_var))
+    }
+
+    _varName(_var){
+        return _var instanceof Var ? _var.name : _var;
     }
 
     /**
@@ -332,7 +352,7 @@ class Context {
      * @param value
      */
     setValue(_var, value){
-        let varName = _var instanceof Var ? _var.name : _var;
+        let varName = this._varName(_var);
         if (value === undefined){
             this.map.delete(varName);
         } else if (value instanceof Num) {
@@ -389,7 +409,7 @@ class Context {
     toValueLaTex(){
         let strs = [];
         for (let key of this.map.keys()) {
-            strs.push(`${key} \\\\mapsto ${this.map.get(key).toHTML()}`)
+            strs.push(`${key} \\\\mapsto ${this.map.get(key).toLaTex().replace('\\', '\\\\')}`)
         }
         return strs.length === 0 ? "\\emptyset" : `[${strs.join(",~")}]`
     }
@@ -1096,7 +1116,7 @@ class ComEvalLine extends EvalLine {
     }
 
     toHTML(){
-        let ret = `〈<code>${this.displayCom.toHTML()}</code>, ${this.startState.toShortHTMLString()}〉`
+        let ret = `〈<code>${this.displayCom.toHTML()}</code>, ${this.startState.toShortHTMLString()}〉`;
         if (this.endState instanceof Context) {
             return `${ret} ⇓ ${this.endState.toShortHTMLString()}`
         }

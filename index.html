@@ -92,7 +92,8 @@
         mulop = "*" / "/";\
         Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(_var.join(""));};\
         integer\
-            = digits:[0-9]+ { return parseInt(digits.join(""), 10); };\
+            = digits:[0-9]+ { return parseInt(digits.join(""), 10); }\
+            / "⊥" {return NaN;};\
         _ "whitespace"\
             = [ \\t\\n\\r]*;\
         ');

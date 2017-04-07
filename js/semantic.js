@@ -1371,7 +1371,8 @@ class EvalBigSemantic {
                  ["c", verb(com.com.toLaTex())],
                  ["\\sigma", startContext.toLaTex()],
                  ["\\sigma'", newContext.toLaTex()]]),
-            new ComEvalLine(com, startContext, endContext), [comLine]);
+            new ComEvalLine(com, startContext, endContext),
+            [comLine, new AssActualValueEvalLine(startContext, newContext, com.var, newContext.getValue(com.var))]);
     }
 
     /**

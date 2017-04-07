@@ -1508,7 +1508,7 @@ function acs(f, s, doVerb=true){
     return `\\langle ${doVerb ? verb(f) : f}, \\sigma ${s} \\rangle `
 }
 rules["SkipSS"] = new Rule("Skip", `${ac("skip", "", "")}`);//\\step ${acs("x \\mathtt{~=~} a \\mathtt{;~}c \\mathtt{;~} x \\mathtt{~=~} n", "", false)}
-rules["AssSS"] = new Rule("Ass", `${acs("x := a", "")} [x \\mapsto A [ a ] \\sigma ]`);
+rules["AssSS"] = new Rule("Ass", `${acs("x := a", "")} \\step ${acs("\\mathtt{skip;~}c", "[x \\mapsto A [ a ] \\sigma ]", false)}`);
 rules["Seq1SS"] = new Rule("Seq1",`\\frac{ ${acs("c_0", "", false)} \\step ${acs("c_0'", "'", false)}}{${acs("c_0 \\mathtt{;~} c_1", "", false)} \\step ${acs("c_0' \\mathtt{;~} c_1", "", false)}}`);
 rules["Seq2SS"] = new Rule("Seq2",`${acs("\\mathtt{skip;}~c", "", false)} \\step ${acs("c", "", false)}`);
 rules["IfTTSS"] = new Rule("IfTT", `\\frac{\\mathcal{B}[b] \\sigma = \\mathtt{tt}}{${acs("\\mathtt{if ~(} b \\mathtt{)~then }~ c_0~ \\mathtt{else} ~c_1", "", false)} \\step ${acs("c_0", "", false)}}`);

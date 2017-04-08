@@ -60,7 +60,7 @@
             if (ch == "[" && /[\[=]/.test(stream.peek()))
                 return (state.cur = bracketed(readBracket(stream), "string"))(stream, state);
             if (/\d/.test(ch)) {
-                stream.eatWhile(/[\w.%]/);
+                stream.eatWhile(/[\w.%]|⊥/);
                 return "number";
             }
             if (/[\w_]/.test(ch)) {

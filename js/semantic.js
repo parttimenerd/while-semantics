@@ -263,8 +263,12 @@ class Num extends Aexp {
         this.isUndefined = isNaN(value);
     }
 
-    toHTML(){
+    toString(){
         return this.isUndefined ? "⊥" : String(this.value);
+    }
+
+    toHTML(){
+        return `<span class="cm-number">${this.toString()}</span>`;
     }
 
     toLaTex(){
@@ -373,7 +377,7 @@ class Context {
     toValueHTML(){
         let strs = [];
         for (let key of this.map.keys()) {
-            strs.push(`${key} ↦ ${this.map.get(key).toHTML()}`)
+            strs.push(`${key} ↦ ${this.map.get(key).toString()}`)
         }
         return strs.length === 0 ? "&empty;" : strs.join(", ")
     }
@@ -809,6 +813,10 @@ class Skip extends Com {
     }
 
     toHTML(){
+        return `<span class="cm-builtin">skip</span>`
+    }
+
+    toLaTex(){
         return "skip"
     }
 
@@ -864,7 +872,7 @@ class LocalAss extends Com {
     }
 
     toHTML(){
-        return `{var ${this.var.name} = ${this.expr.toHTML()}; ${this.com.toHTML()}}`
+        return `{<span class="cm-keyword">var</span> ${this.var.name} = ${this.expr.toHTML()}; ${this.com.toHTML()}}`
     }
 
     toLaTex(){
@@ -965,7 +973,7 @@ class If extends Com {
     }
 
     toHTML(){
-        return `if (${this.cond.toHTML()}) then ${this._comToHTML(this.com1)} else ${this._comToHTML(this.com2)}`
+        return `<span class="cm-keyword">if</span> (${this.cond.toHTML()}) <span class="cm-keyword">then</span> ${this._comToHTML(this.com1)} <span class="cm-keyword">else</span> ${this._comToHTML(this.com2)}`
     }
 
     toLaTex(){
@@ -997,11 +1005,10 @@ class While extends Com {
     }
 
     toHTML(){
-        return `while (${this.cond.toHTML()}) do ${this._comToHTML(this.body)}`
+        return `<span class="cm-keyword">while</span> (${this.cond.toHTML()}) <span class="cm-keyword">do</span> ${this._comToHTML(this.body)}`
     }
 
     toLaTex(){
-        console.log(this.cond.toLaTex())
         return `while (${this.cond.toLaTex()}) do ${this._comToLaTex(this.body)}`
     }
 
@@ -1232,6 +1239,9 @@ function ac(f, s, sigmaApp, doVerb=true){
 }
 function verb(s){
     return `\\mathtt{${s.replace(/ /g, "~")}}`
+}
+function verbK(keyword){
+    return `\\mathtt{\\mathbf{${s.replace(/ /g, "~")}}}`
 }
 rules["Skip"] = new Rule("Skip", `${ac("skip", "", "")}`);
 rules["Ass"] = new Rule("Ass", `${ac("x := a", "", "")} [x \\mapsto A [ a ] \\sigma ]`);

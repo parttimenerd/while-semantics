@@ -59,7 +59,7 @@
                 return (state.cur = string(ch))(stream, state);
             if (ch == "[" && /[\[=]/.test(stream.peek()))
                 return (state.cur = bracketed(readBracket(stream), "string"))(stream, state);
-            if (/\d/.test(ch)) {
+            if (/\d|⊥/.test(ch)) {
                 stream.eatWhile(/[\w.%]|⊥/);
                 return "number";
             }

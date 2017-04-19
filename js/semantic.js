@@ -1486,7 +1486,7 @@ ${this.appliedRule.toCallJS("evt")};
         }
         return `
     <div class="ss_step" onmouseleave="clearRule(this); unhighlightPrevAndCur(${highlightIds.join(",")});" onmouseover="if (!window.isContextUnderFocus) {window.stepFunc${id}(this); highlightPrevAndCur(${highlightIds.join(",")});}">
-        <span class="ss_arrow">→<span class="sub">${this.appliedRule.childApplications.length + 1}</span></span>
+        <span class="ss_arrow">→<span class="sub">1</span></span>
         <span class="ss_eval_line">
             ${this.maxStepsReached ? `… maximum number of steps reached ` : this.currentEvalLine.toHTML()}
         </span>

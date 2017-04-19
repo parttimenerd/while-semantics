@@ -391,7 +391,7 @@ class Context {
     }
 
     toShortHTMLString(){
-        return `<span class="context ${this.htmlClass} highlightable" onmouseleave="clearRule(); window.isContextUnderFocus = false; unhighlightElems('.${this.htmlClass}', 'highlight-context');" onmouseover="window.isContextUnderFocus = true; highlightElems('.${this.htmlClass}', 'highlight-context'); ${this.toDisplayJSCode()}"><var>σ</var>${this._subbedId()}</span>`
+        return `<span class="context ${this.htmlClass} highlightable" onmouseleave="clearRule('.${this.htmlClass}'); window.isContextUnderFocus = false; unhighlightElems('.${this.htmlClass}', 'highlight-context');" onmouseover="clearRule(); window.isContextUnderFocus = true; highlightElems('.${this.htmlClass}', 'highlight-context'); ${this.toDisplayJSCode()}"><var>σ</var>${this._subbedId()}</span>`
     }
 
     toShortHTMLStringWoJS(){
@@ -419,7 +419,7 @@ class Context {
     }
 
     toDisplayJSCode(){
-        return `displayLaTex('${this.toLongLaTex().replace('\\', '\\\\')}')`
+        return `displayLaTex(this, '${this.toLongLaTex().replace('\\', '\\\\')}')`
     }
 
     /**
@@ -1144,18 +1144,25 @@ class Rule {
 }
 
 class RuleApplication {
-    constructor(ruleId, instantiations){
+    constructor(ruleId, instantiations, childApplications = []){
         this.ruleId = ruleId;
         this.instantiations = instantiations;
+        this.childApplications = childApplications;
     }
 
     toInstantiatedLaTexArr(){
-        return [`\\text{${this.toString()}}: ${rules[this.ruleId].formula}`,
-            `${this.instantiations.map(x => `${x[0]} \\equiv ${x[1]}`).join(",~")}`]
+        const ret = [[`\\text{${this.toString()}}: ${rules[this.ruleId].formula}`,
+            `${this.instantiations.map(x => `${x[0]} \\equiv ${x[1]}`).join(",~")}`]].concat(this.childApplications.map(x => x.toInstantiatedLaTexArr()).reduce((acc, val) => acc.concat(val), []));
+        console.log(JSON.stringify(ret));
+        return ret
     }
 
-    toCallJS(){
-        return `displayRule(new RuleApplication("${this.ruleId}", ${JSON.stringify(this.instantiations)}))`;
+    toCallJS(cssElemSelector){
+        return `displayRule(${cssElemSelector}, ${this.toJSRep()})`;
+    }
+
+    toJSRep(){
+        return `new RuleApplication("${this.ruleId}", ${JSON.stringify(this.instantiations)}, [${this.childApplications.map(x => x.toJSRep()).join()}])`
     }
 
     toString(){
@@ -1197,15 +1204,15 @@ class EvalStep {
         let eventHandlers = "";
         const cssLineClass = `bs_line_${this.currentEvalLine.htmlId}`;
         if (this.appliedRule instanceof RuleApplication) {
-        eval(`     window.stepFunc${id} = function() {
-${this.appliedRule.toCallJS()};
+        eval(`     window.stepFunc${id} = function(evt) {
+${this.appliedRule.toCallJS("evt")};
 };`);
             const highlightIds = ["'" + this.currentEvalLine.htmlId + "'"];
             if (_prevHTMLId !== -1){
                 highlightIds.push("'" + _prevHTMLId + "'");
             }
-            const onmouseleave = `clearRule(); unhighlightPrevAndCur(${highlightIds.join(",")}); unhighlightElems('.${cssLineClass}');`;
-            const onmouseover = `if (!window.isContextUnderFocus) {window.stepFunc${id}(); highlightPrevAndCur(${highlightIds.join(",")}); highlightElems('.${cssLineClass}');}`;
+            const onmouseleave = `clearRule('.${cssLineClass}'); unhighlightPrevAndCur(${highlightIds.join(",")}); unhighlightElems('.${cssLineClass}');`;
+            const onmouseover = `if (!window.isContextUnderFocus) {window.stepFunc${id}(this); highlightPrevAndCur(${highlightIds.join(",")}); highlightElems('.${cssLineClass}');}`;
             eventHandlers = `onmouseleave="${onmouseleave}" onmouseover="${onmouseover}"`;
         } else {
         }
@@ -1470,8 +1477,8 @@ class SSEvalStep {
         __random_num += 1;
         let id = __random_num;
         if (this.appliedRule instanceof RuleApplication) {
-            eval(`     window.stepFunc${id} = function() {
-${this.appliedRule.toCallJS()};
+            eval(`     window.stepFunc${id} = function(evt) {
+${this.appliedRule.toCallJS("evt")};
 };`);
         }
         const highlightIds = ["'" + this.currentEvalLine.htmlId + "'"];
@@ -1479,7 +1486,7 @@ ${this.appliedRule.toCallJS()};
             highlightIds.push("'" + _prevHTMLId + "'");
         }
         return `
-    <div class="ss_step" onmouseleave="clearRule(); unhighlightPrevAndCur(${highlightIds.join(",")});" onmouseover="if (!window.isContextUnderFocus) {window.stepFunc${id}(); highlightPrevAndCur(${highlightIds.join(",")});}">
+    <div class="ss_step" onmouseleave="clearRule(this); unhighlightPrevAndCur(${highlightIds.join(",")});" onmouseover="if (!window.isContextUnderFocus) {window.stepFunc${id}(this); highlightPrevAndCur(${highlightIds.join(",")});}">
         <span class="ss_arrow">→<span class="sub">1</span></span>
         <span class="ss_eval_line">
             ${this.maxStepsReached ? `… maximum number of steps reached ` : this.currentEvalLine.toHTML()}
@@ -1532,6 +1539,11 @@ class SSEvalSteps {
     /** @return {Com} */
     get endCom(){
         return this.endLine.program;
+    }
+
+    /** @return {SSEvalStep} */
+    get endStep(){
+        return this.steps[this.steps.length - 1];
     }
 }
 
@@ -1597,6 +1609,15 @@ class EvalSmallStepSemantic {
         let step = new SSEvalStep(appliedRule, new ComEvalLine(surround(actualCom), context, null, actualCom,
             surround(actualCom.wrapNodes(highlightedNodes, x => new HighlightNode(x)))));
         this.evalSteps.addStep(step);
+    }
+
+    /**
+     * @param {RuleApplication} appliedRule
+     */
+    _addRuleApplicationToLastStep(appliedRule){
+        if (this.evalSteps.steps.length > 0) {
+            this.evalSteps.endStep.appliedRule.childApplications.push(appliedRule);
+        }
     }
 
     _highlightPrev(nodes){
@@ -1673,18 +1694,18 @@ class EvalSmallStepSemantic {
             this._dispatch(com.com2, startContext, surround);
         } else {
             this._dispatch(com.com1, this.evalSteps.endState, x => surround(new Seq(x, com.com2)));
+
             // TODO: should the Seq1SS rule really be omitted?
-            /*
+
             this._highlightPrev([com.com2]);
-            this._addStep(
+            this._addRuleApplicationToLastStep(
                 new RuleApplication("Seq1SS", [
                         ["c_0", verb(com.com1.toLaTex())],
                         ["c_1", verb(com.com2.toLaTex())],
                         ["\\sigma", startContext.toLaTex()],
                         ["c_0''", this.evalSteps.endLine.actualCom.toLaTex()],
-                        ["\\sigma'", this.evalSteps.endState.toLaTex()]]),
-                com.com2, [com.com2], this.evalSteps.endState, surround);
-            */
+                        ["\\sigma'", this.evalSteps.endState.toLaTex()]]));
+
             //if (isSkip(com.com2)){
             //    this._dispatch(com.com2, this.evalSteps.endState, surround);
             //} else {

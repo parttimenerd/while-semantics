@@ -63,6 +63,23 @@ div.rulename {
 
 }
 
+.popover {
+    display:block !important;
+    max-width: 1000px!important;
+    width:auto;
+    height: auto !important;
+    color: black !important;
+    z-index: 10000;
+}
+
+.rule-app-sep {
+    border-top: lightgray solid 0.05cm;
+    margin-top: -0.3cm;
+    margin-bottom: -0.3cm;
+    padding: 0cm;
+    width: 100%;
+}
+
 /** Source: http://stackoverflow.com/a/16338823 */
 td {
     text-align:center;

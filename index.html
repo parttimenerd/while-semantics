@@ -136,14 +136,35 @@
 <div class="container" style="height: 1.5cm;">
     Result: <div id="resultContext"><textarea id="resultContextTA"></textarea></div>
 </div>
-<div style="height: 1cm; text-align: center; margin-bottom: 1.5cm;"><div id="ruleApplication"></div></div>
+<!--<div style="height: 1cm; text-align: center; margin-bottom: 1.5cm;"><div id="ruleApplication"></div></div>-->
 </div>
 
-<div class="cm-s-default" style="padding-top: 12cm; margin-left: auto; margin-right: auto; text-align: center;">
+<div class="cm-s-default" style="padding-top: 11cm; margin-left: auto; margin-right: auto; text-align: center;">
     <div id="result" style="margin-left: auto; margin-right: auto; height: 100%;text-align: center;"></div>
 </div>
 
 <script>
+
+    let x = null;
+    let y = null;
+
+    document.addEventListener('mousemove', onMouseUpdate, false); // source: http://stackoverflow.com/a/22986867
+    document.addEventListener('mouseenter', onMouseUpdate, false);
+
+    function onMouseUpdate(e) {
+        x = e.pageX;
+        y = e.pageY;
+    }
+
+    function getMouseX() {
+        return x;
+    }
+
+    function getMouseY() {
+        return y;
+    }
+
+
     if (Cookies.get("mode") !== "ss") {
         $("#bsMode").button("toggle");
     } else {
@@ -159,32 +180,54 @@
         Cookies.set("mode", isInBigStepMode() ? "bs" : "ss");
     }
 
-    function display(html){
-        document.querySelector("#ruleApplication").innerHTML = html;
+    let currentlyPopoveredElem = null;
+
+    function display(elemSelector, html){
+        //document.querySelector("#ruleApplication").innerHTML = html;
+        popoverOptions = {
+            content: html,
+            trigger: 'hover',
+            animation: false,
+            placement: 'auto',
+            html: true,
+            atMouse: true,
+            mousePos: {posX: getMouseX(), posY: getMouseY()}
+        };
+        currentlyPopoveredElem = $(elemSelector).last();
+        currentlyPopoveredElem.popover(popoverOptions).popover('show');
     }
     /** @param {RuleApplication} ruleApplication */
-    function displayRule(ruleApplication){
+    function displayRule(elemSelector, ruleApplication){
         let formulaArr = ruleApplication.toInstantiatedLaTexArr();
-        let elem = document.querySelector("#ruleApplication");
-        elem.innerHTML = renderLaTex(formulaArr[0]) + `<div class="instantiated-vars">${renderLaTex(formulaArr[1])}</div>`;
-        renderMathInElement(elem);
+        console.log(formulaArr.length);
+        display(elemSelector, formulaArr.map(x => renderLaTex(x[0]) + `<div class="instantiated-vars">${renderLaTex(x[1])}</div>`).map(x => `<div class="rule-app">${x}</div>`).join(`<br/><div class="rule-app-sep"></div><br/>`));
     }
 
+    _renderLaTexCache = new Map();
+
     function renderLaTex(formula){
-        return katex.renderToString(formula.replace("\\\\mapsto", "\\mapsto"), {
+        if (_renderLaTexCache.has(formula)){
+            return _renderLaTexCache.get(formula);
+        }
+        console.log(formula)
+        const rendered = katex.renderToString(formula.replace("\\\\mapsto", "\\mapsto"), {
             displayMode: true,
             macros: {
                 "\\step": "\\to_{1}"
             }
         });
+        _renderLaTexCache.set(formula, rendered);
+        return rendered;
     }
-    function displayLaTex(formula, formula2 = ""){
-        let elem = document.querySelector("#ruleApplication");
-        elem.innerHTML = renderLaTex(formula) + renderLaTex(formula2);
-        renderMathInElement(elem);
+    function displayLaTex(elemSelector, ...formulas){
+        display(elemSelector, formulas.map(formula => renderLaTex(formula)).join(""));
     }
-    function clearRule(){
-        document.querySelector("#ruleApplication").innerHTML = "";
+    function clearRule(elemSelector){
+        //document.querySelector("#ruleApplication").innerHTML = "";
+        $(elemSelector).popover('destroy');
+        if (currentlyPopoveredElem !== null) {
+            $(currentlyPopoveredElem).popover('destroy');
+        }
     }
     setMode(Cookies.get("mode") !== "ss");
     let sourceEditor = CodeMirror.fromTextArea(document.getElementById("source"), {

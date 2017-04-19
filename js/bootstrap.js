@@ -1296,6 +1296,7 @@ if (typeof jQuery === 'undefined') {
     delay: 0,
     html: false,
     container: false,
+      atMouse: false,
     viewport: {
       selector: 'body',
       padding: 0
@@ -1373,9 +1374,10 @@ if (typeof jQuery === 'undefined') {
     }
 
     if (obj instanceof $.Event) {
-      self.inState[obj.type == 'focusin' ? 'focus' : 'hover'] = true
+          self.inState[obj.type == 'focusin' ? 'focus' : 'hover'] = true
+          self.options.mousePos = {posX: getMouseX(), posY: getMouseY()}
+          console.log(self.options.mousePos)
     }
-
     if (self.tip().hasClass('in') || self.hoverState == 'in') {
       self.hoverState = 'in'
       return
@@ -1481,6 +1483,11 @@ if (typeof jQuery === 'undefined') {
           .removeClass(orgPlacement)
           .addClass(placement)
       }
+
+        if(this.options.atMouse) {
+            pos['posY'] = this.options.mousePos['posY'];
+            pos['posX'] = this.options.mousePos['posX'];
+        }
 
       var calculatedOffset = this.getCalculatedOffset(placement, pos, actualWidth, actualHeight)
 
@@ -1631,6 +1638,12 @@ if (typeof jQuery === 'undefined') {
   }
 
   Tooltip.prototype.getCalculatedOffset = function (placement, pos, actualWidth, actualHeight) {
+      if(this.options.atMouse) {
+          return placement == 'bottom' ? {top: pos.top + pos.height, left: pos.posX - (actualWidth / 2)} :
+              placement == 'top' ? {top: pos.top - actualHeight, left: pos.posX - (actualWidth / 2)} :
+                  placement == 'left' ? {top: pos.top + pos.height / 2 - actualHeight / 2, left: pos.posX - actualWidth} :
+                      {top: pos.top + pos.height / 2 - actualHeight / 2, left: pos.posX}
+      }
     return placement == 'bottom' ? { top: pos.top + pos.height,   left: pos.left + pos.width / 2 - actualWidth / 2 } :
            placement == 'top'    ? { top: pos.top - actualHeight, left: pos.left + pos.width / 2 - actualWidth / 2 } :
            placement == 'left'   ? { top: pos.top + pos.height / 2 - actualHeight / 2, left: pos.left - actualWidth } :

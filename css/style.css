@@ -41,10 +41,10 @@ div.rulename {
     margin-top: 0.2cm;
 }
 
-.sub {
+/*.sub {
     vertical-align: sub;
     font-size: smaller;
-}
+}*/
 
 .highlight-visible,
 .highlight-visible code,

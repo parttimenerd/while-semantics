@@ -399,7 +399,7 @@ class Context {
     }
 
     _subbedId(){
-        return `<span class="sub">${this.id}</span>`
+        return `<span class="sub">${subscriptNumber(this.id)}</span>`
     }
 
     toLaTex(){
@@ -435,6 +435,19 @@ class Context {
         return con
     }
 
+}
+
+/**
+ * Get the unicode subscript version of the passed number.
+ * Only works for positive integers.
+ * @param {Number} num
+ */
+function subscriptNumber(num){
+    if (Math.round(num) !== num){
+        throw "Not an integer"
+    }
+    const arr = ["₀", "₁", "₂", "₃", "₄", "₅", "₆", "₇", "₈", "₉"];
+    return String(num).split("").map(c => arr[Number(c)]).join("")
 }
 
 class Var extends Aexp {
@@ -1486,7 +1499,7 @@ ${this.appliedRule.toCallJS("evt")};
         }
         return `
     <div class="ss_step" onmouseleave="clearRule(this); unhighlightPrevAndCur(${highlightIds.join(",")});" onmouseover="if (!window.isContextUnderFocus) {window.stepFunc${id}(this); highlightPrevAndCur(${highlightIds.join(",")});}">
-        <span class="ss_arrow">→<span class="sub">1</span></span>
+        <span class="ss_arrow">→<span class="sub">${subscriptNumber(1)}</span></span>
         <span class="ss_eval_line">
             ${this.maxStepsReached ? `… maximum number of steps reached ` : this.currentEvalLine.toHTML()}
         </span>

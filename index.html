@@ -115,10 +115,10 @@
           <div style="height: 1cm; border: solid darkgray 1px; margin-bottom: 0.5cm;">
               <textarea class="form-control" id="vars" rows="3"></textarea>
           </div>
-          <form class="form-inline" style="margin-bottom: 0.5cm;">
+          <div class="form-inline" style="margin-bottom: 0.5cm;">
               <div class="form-group">
                   <label for="maxSteps" class="">Max steps</label>
-                  <input class="form-control" type="number" value="100" id="maxSteps" style="margin-left: 0.5cm; width: 2cm; text-align: right" onchange="update()">
+                  <input class="form-control" type="number" value="100" id="maxSteps" style="margin-left: 0.5cm; width: 2cm; text-align: right" onchange="update()" onkeyup="update()" min="0" max="10000">
                   <label style="margin-left: 1cm; margin-right: 0.5cm;">Used semantics</label>
                   <div class="btn-group" data-toggle="buttons">
                       <label class="btn btn-primary" id="bsMode" onclick="setMode(true); update();">
@@ -129,7 +129,7 @@
                       </label>
                   </div>
               </div>
-          </form>
+          </div>
       </div>
 
     </div>
@@ -199,7 +199,6 @@
     /** @param {RuleApplication} ruleApplication */
     function displayRule(elemSelector, ruleApplication){
         let formulaArr = ruleApplication.toInstantiatedLaTexArr();
-        console.log(formulaArr.length);
         display(elemSelector, formulaArr.map(x => renderLaTex(x[0]) + `<div class="instantiated-vars">${renderLaTex(x[1])}</div>`).map(x => `<div class="rule-app">${x}</div>`).join(`<br/><div class="rule-app-sep"></div><br/>`));
     }
 
@@ -209,7 +208,6 @@
         if (_renderLaTexCache.has(formula)){
             return _renderLaTexCache.get(formula);
         }
-        console.log(formula)
         const rendered = katex.renderToString(formula.replace("\\\\mapsto", "\\mapsto"), {
             displayMode: true,
             macros: {
@@ -251,6 +249,7 @@
     document.getElementById("maxSteps").value = isNaN(Number(Cookies.get("maxSteps"))) ? 20 : Cookies.get("maxSteps");
     resultContextEditor.setSize("90%","90%");
     initParser();
+
     sourceEditor.on("change", function() {
         update();
     });
@@ -264,10 +263,10 @@
         }
         let text = sourceEditor.getValue();
         Cookies.set("source", text);
+        let maxSteps = Number.parseInt(document.getElementById("maxSteps").value);
         Cookies.set("maxSteps", maxSteps);
         Cookies.set("vars", varsEditor.getValue());
         try {
-            let maxSteps = Number.parseInt(document.getElementById("maxSteps").value);
             let contextFactory = new ContextFactory();
             let con = contextFactory.createFromString(varsEditor.getValue());
             let parsed = PEGUtil.parse(parser, text.trim());

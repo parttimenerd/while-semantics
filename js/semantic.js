@@ -1153,7 +1153,6 @@ class RuleApplication {
     toInstantiatedLaTexArr(){
         const ret = [[`\\text{${this.toString()}}: ${rules[this.ruleId].formula}`,
             `${this.instantiations.map(x => `${x[0]} \\equiv ${x[1]}`).join(",~")}`]].concat(this.childApplications.map(x => x.toInstantiatedLaTexArr()).reduce((acc, val) => acc.concat(val), []));
-        console.log(JSON.stringify(ret));
         return ret
     }
 
@@ -1604,10 +1603,11 @@ class EvalSmallStepSemantic {
      * @param {ASTNode[]} highlightedNodes
      * @param {Context} context
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} maxStepsReached
      */
-    _addStep(appliedRule, actualCom, highlightedNodes, context, surround) {
+    _addStep(appliedRule, actualCom, highlightedNodes, context, surround, maxStepsReached = false) {
         let step = new SSEvalStep(appliedRule, new ComEvalLine(surround(actualCom), context, null, actualCom,
-            surround(actualCom.wrapNodes(highlightedNodes, x => new HighlightNode(x)))));
+            surround(actualCom.wrapNodes(highlightedNodes, x => new HighlightNode(x)))), maxStepsReached);
         this.evalSteps.addStep(step);
     }
 
@@ -1637,9 +1637,9 @@ class EvalSmallStepSemantic {
         if (isSkip(com)){
             return;
         }
-        if (this.maxSteps <= this.steps){
-            this.maxStepsReached = this;
-            this._addStep(new RuleApplication("maxSteps", []), new Skip(), [com], startContext, x => x);
+        if (this.maxSteps < this.steps){
+            this.maxStepsReached = true;
+            this._addStep(new RuleApplication("maxSteps", []), new Skip(), [com], startContext, x => x, true);
             return;
         }
         this.steps +=1;
@@ -1696,7 +1696,6 @@ class EvalSmallStepSemantic {
             this._dispatch(com.com1, this.evalSteps.endState, x => surround(new Seq(x, com.com2)));
 
             // TODO: should the Seq1SS rule really be omitted?
-
             this._highlightPrev([com.com2]);
             this._addRuleApplicationToLastStep(
                 new RuleApplication("Seq1SS", [
@@ -1709,8 +1708,10 @@ class EvalSmallStepSemantic {
             //if (isSkip(com.com2)){
             //    this._dispatch(com.com2, this.evalSteps.endState, surround);
             //} else {
+            if (!this.maxStepsReached) {
                 this._dispatch(new Seq(new Skip(), com.com2), this.evalSteps.endState, surround);
-            //}
+                //}
+            }
         }
     }
 

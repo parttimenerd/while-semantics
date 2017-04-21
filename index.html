@@ -128,6 +128,8 @@
                           <input type="radio" name="options"> SmallStep
                       </label>
                   </div>
+                  <span><label style="margin-left: 1cm; margin-right: 0.5cm">Share</label>
+                      <input value="" id="shareLink" style="width: 5cm; color: darkgray;" readonly/></span>
               </div>
           </div>
       </div>
@@ -227,6 +229,15 @@
             $(currentlyPopoveredElem).popover('destroy');
         }
     }
+
+    try {
+        const hashVal = JSON.parse(decodeURI(document.location.hash.split("#")[1]));
+        Cookies.set("source", hashVal["source"]);
+        Cookies.set("maxSteps", hashVal["maxSteps"]);
+        Cookies.set("vars", hashVal["vars"]);
+        Cookies.set("mode", hashVal["mode"]);
+    } catch (e){}
+
     setMode(Cookies.get("mode") !== "ss");
     let sourceEditor = CodeMirror.fromTextArea(document.getElementById("source"), {
         mode:  "text/x-while",
@@ -266,6 +277,9 @@
         let maxSteps = Number.parseInt(document.getElementById("maxSteps").value);
         Cookies.set("maxSteps", maxSteps);
         Cookies.set("vars", varsEditor.getValue());
+        let hash = encodeURI(JSON.stringify({"source": text, "maxSteps": maxSteps, "vars": varsEditor.getValue(),
+            "mode": Cookies.get("mode")}));
+        document.getElementById("shareLink").value = document.URL.split("#")[0] + "#" + hash
         try {
             let contextFactory = new ContextFactory();
             let con = contextFactory.createFromString(varsEditor.getValue());

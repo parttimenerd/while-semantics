@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Semantic evaluation of the While language via semantic rules</title>
+    <script src="js/mousetrap.min.js"></script>
     <script src="js/jquery-3.2.0.min.js"></script>
     <script src="js/codemirror.js"></script>
     <script src="js/while_mode.js"></script>
@@ -169,18 +170,17 @@
         return y;
     }
 
-
-    if (Cookies.get("mode") !== "ss") {
-        $("#bsMode").button("toggle");
-    } else {
-        $("#ssMode").button("toggle");
-    }
     _inBigStepMode = true;
     function isInBigStepMode(){
         return _inBigStepMode;
     }
 
     function setMode(isBigStep){
+        if (Cookies.get("mode") !== "ss") {
+            $("#bsMode").button("toggle");
+        } else {
+            $("#ssMode").button("toggle");
+        }
         _inBigStepMode = isBigStep;
         Cookies.set("mode", isInBigStepMode() ? "bs" : "ss");
     }
@@ -191,6 +191,20 @@
     
     function updateShowPopoverMode() {
         Cookies.set("showPopovers", shouldShowPopovers());
+    }
+
+    function setShowPopoverMode(showPopovers){
+        document.getElementById("showPopovers").checked = showPopovers;
+        Cookies.get("showPopovers", showPopovers);
+    }
+
+    function setMaxSteps(maxSteps){
+        document.getElementById("maxSteps").value = maxSteps;
+        Cookies.set("maxSteps", maxSteps);
+    }
+
+    function getMaxSteps(){
+        return Number.parseInt(document.getElementById("maxSteps").value);
     }
 
     function updateShareURL() {
@@ -243,9 +257,11 @@
         _renderLaTexCache.set(formula, rendered);
         return rendered;
     }
-    function displayLaTex(elemSelector, ...formulas){
+
+    function displayLaTex(elemSelector, ...formulas) {
         display(elemSelector, formulas.map(formula => renderLaTex(formula)).join(""));
     }
+
     function clearRule(elemSelector){
         //document.querySelector("#ruleApplication").innerHTML = "";
         $(elemSelector).popover('destroy');
@@ -262,7 +278,7 @@
         Cookies.set("mode", hashVal["mode"]);
     } catch (e){}
 
-    document.getElementById("showPopovers").checked = Cookies.get("showPopovers") !== "false";
+    setShowPopoverMode(Cookies.get("showPopovers") !== "false");
 
     setMode(Cookies.get("mode") !== "ss");
     let sourceEditor = CodeMirror.fromTextArea(document.getElementById("source"), {
@@ -283,7 +299,9 @@
         lineWrapping: true,
         readOnly: true
     });
-    document.getElementById("maxSteps").value = isNaN(Number(Cookies.get("maxSteps"))) ? 20 : Cookies.get("maxSteps");
+
+    setMaxSteps(isNaN(Number(Cookies.get("maxSteps"))) ? 20 : Cookies.get("maxSteps"));
+
     resultContextEditor.setSize("90%","90%");
     initParser();
 
@@ -300,8 +318,7 @@
         }
         let text = sourceEditor.getValue();
         Cookies.set("source", text);
-        let maxSteps = Number.parseInt(document.getElementById("maxSteps").value);
-        Cookies.set("maxSteps", maxSteps);
+        Cookies.set("maxSteps", getMaxSteps());
         Cookies.set("vars", varsEditor.getValue());
         updateShareURL();
         try {
@@ -317,9 +334,9 @@
              */
             let result;
             if (isInBigStepMode()) {
-                result = new EvalBigSemantic(parsed.ast, con, maxSteps).eval();
+                result = new EvalBigSemantic(parsed.ast, con, getMaxSteps()).eval();
             } else {
-                result = new EvalSmallStepSemantic(parsed.ast, con, maxSteps).eval();
+                result = new EvalSmallStepSemantic(parsed.ast, con, getMaxSteps()).eval();
             }
             if (result.maxStepsReached){
                 resultContextEditor.setValue("Maximum number of execution steps reached.");
@@ -334,7 +351,21 @@
         // let resultST = new EvalSmallSemantic(parsed, con, maxSteps).eval();
         // document.getElementById("resultST").innerHTML = resultST.toHTML()
     }
-    //console.log(parser.parse("if(not 1 <= 3) then (skip) else (a:=3)"))
+
+    Mousetrap.bind("s", () => {
+        setMode(!isInBigStepMode());
+        update();
+    });
+
+    Mousetrap.bind(["m", "+"], () => {
+        setMaxSteps(getMaxSteps() + 1);
+        update();
+    });
+
+    Mousetrap.bind(["l", "-"], () => {
+        setMaxSteps(Math.max(getMaxSteps() - 1, 0));
+        update();
+    });
 </script>
 </body>
 </html>

@@ -435,6 +435,30 @@ class Context {
         return con
     }
 
+    /**
+     *
+     * @param {Context} otherContext
+     * @param {String[]} ignoredVarNames
+     */
+    equals(otherContext, ignoredVarNames = []){
+        for (let _var of this.map.keys()) {
+            if (ignoredVarNames.includes(_var)){
+                continue;
+            }
+            if (!otherContext.map.has(_var) || otherContext.getValue(_var).value !== this.getValue(_var).value){
+                return false;
+            }
+        }
+        for (let _var of otherContext.map.keys()) {
+            if (ignoredVarNames.includes(_var)){
+                continue;
+            }
+            if (!this.map.has(_var)){
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 /**
@@ -889,7 +913,7 @@ class LocalAss extends Com {
     }
 
     toLaTex(){
-        return `\\{var ${this.var.name} = ${this.expr.toLaTex()}; ${this.com.toLaTex()}\\}`
+        return `\\{var~ ${this.var.name} = ${this.expr.toLaTex()}; ${this.com.toLaTex()}\\}`
     }
 
     visit(visitor){
@@ -1141,6 +1165,10 @@ class ComEvalLine extends EvalLine {
             return `${ret} ⇓ ${this.endState.toShortHTMLString()}`
         }
         return `<span id="${this.htmlId}">${ret}</span>`;
+    }
+
+    highlightNodes(nodes){
+        this.displayCom = this.displayCom.wrapNodes(nodes, x => new HighlightNode(x, "highlight-prev"));
     }
 }
 
@@ -1645,8 +1673,9 @@ class EvalSmallStepSemantic {
      * @param {Com} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} onlyOneStep make only one single step
      */
-    _dispatch(com, startContext, surround){
+    _dispatch(com, startContext, surround, onlyOneStep = false){
         if (isSkip(com)){
             return;
         }
@@ -1665,23 +1694,25 @@ class EvalSmallStepSemantic {
             "While": this._visitWhile,
             "SingleCom": this._visitSingleCom
         };
-        funcs[com.constructor.name].apply(this, [com, startContext, surround])
+        funcs[com.constructor.name].apply(this, [com, startContext, surround, onlyOneStep])
     }
 
     /**
      * @param {Skip} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} onlyOneStep make only one single step
      */
-    _visitSkip(com, startContext, surround){
+    _visitSkip(com, startContext, surround, onlyOneStep){
     }
 
     /**
      * @param {Skip} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} onlyOneStep make only one single step
      */
-    _visitAss(com, startContext, surround){
+    _visitAss(com, startContext, surround, onlyOneStep){
         let newCon = startContext.setImm(com.var, arithmeticValue(com.expr, startContext));
         this._highlightPrev([com]);
         let newCom = new Skip();
@@ -1695,20 +1726,20 @@ class EvalSmallStepSemantic {
      * @param {Seq} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} onlyOneStep make only one single step
      */
-    _visitSeq(com, startContext, surround){
+    _visitSeq(com, startContext, surround, onlyOneStep){
         if (isSkip(com.com1)){ // Seq2
             this._highlightPrev([com.com2]);
             this._addStep(
                 new RuleApplication("Seq2SS",
                     [["c", verb(com.com2.toLaTex())],
                     ["\\sigma", startContext.toLaTex()]]), com.com2, [com.com2], startContext, surround);
-
-            this._dispatch(com.com2, startContext, surround);
+            if (!onlyOneStep) {
+                this._dispatch(com.com2, startContext, surround);
+            }
         } else {
             this._dispatch(com.com1, this.evalSteps.endState, x => surround(new Seq(x, com.com2)));
-
-            // TODO: should the Seq1SS rule really be omitted?
             this._highlightPrev([com.com2]);
             this._addRuleApplicationToLastStep(
                 new RuleApplication("Seq1SS", [
@@ -1721,7 +1752,7 @@ class EvalSmallStepSemantic {
             //if (isSkip(com.com2)){
             //    this._dispatch(com.com2, this.evalSteps.endState, surround);
             //} else {
-            if (!this.maxStepsReached) {
+            if (!this.maxStepsReached && !onlyOneStep) {
                 this._dispatch(new Seq(new Skip(), com.com2), this.evalSteps.endState, surround);
                 //}
             }
@@ -1732,8 +1763,9 @@ class EvalSmallStepSemantic {
      * @param {If} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} onlyOneStep make only one single step
      */
-    _visitIf(com, startContext, surround){
+    _visitIf(com, startContext, surround, onlyOneStep){
         let condVal = booleanValue(com.cond, startContext).value;
         let chosenCom = condVal ? com.com1 : com.com2;
         this._highlightPrev([com.cond, chosenCom]);
@@ -1742,49 +1774,85 @@ class EvalSmallStepSemantic {
                 [["c_0", verb(com.com1.toLaTex())], ["c_1", verb(com.com2.toLaTex())],
                  ["\\sigma", startContext.toLaTex()]]),
                 chosenCom, [chosenCom], startContext, surround);
-        this._dispatch(chosenCom, startContext, surround);
+        if (!onlyOneStep) {
+            this._dispatch(chosenCom, startContext, surround);
+        }
     }
 
     /**
      * @param {While} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} onlyOneStep make only one single step
      */
-    _visitWhile(com, startContext, surround){
+    _visitWhile(com, startContext, surround, onlyOneStep){
         let newCom = new If(com.cond, new Seq(com.body, com), new Skip());
         this._highlightPrev([com]);
         this._addStep(new RuleApplication("WhileSS",
             [["b", com.cond.toLaTex()], ["c", verb(com.body.toLaTex())], ["\\sigma", startContext.toLaTex()]]),
             newCom, [newCom], startContext, surround);
-        this._dispatch(newCom, startContext, surround);
+        if (!onlyOneStep) {
+            this._dispatch(newCom, startContext, surround);
+        }
     }
 
     /**
      * @param {LocalAss} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} onlyOneStep make only one single step
      */
-    _visitLocalAss(com, startContext, surround){
+    _visitLocalAss(com, startContext, surround, onlyOneStep){
         this._highlightPrev([com.com]);
         let baseInsts =             [["x", com.var.name], ["a", com.expr.toLaTex()], ["\\sigma", startContext.toLaTex()]];
         if (isSkip(com.com)){
-            this._highlightPrev([com]);
+            this._highlightPrev([com.com]);
             this._addStep(new RuleApplication("Block2SS", baseInsts), com.com, [com.com], startContext, surround);
         } else {
-            let oldVal = startContext.getValue(com.var);
-            let val = arithmeticValue(com.expr, startContext);
-            let alteredContext = startContext.setImm(com.var, val);
-            this._dispatch(com.com, alteredContext, x => surround(new LocalAss(com.var, com.expr, x)));
-            let lastLine = this.evalSteps.endLine;
-            this._highlightPrev([lastLine.displayCom]);
-            let newCom = new LocalAss(com.var, lastLine.startState.getValue(com.var), lastLine.actualCom);
-            newCom._id = com._id;
-            let resetContext = lastLine.startState.setImm(com.var, oldVal);
-            this._addStep(new RuleApplication("Block1SS",
-                [["x", com.var.name], ["a", com.expr.toLaTex()], ["c", com.com.toLaTex()], ["\\sigma", startContext.toLaTex()],
-                ["c'", verb(lastLine.actualCom.toLaTex())], ["\\sigma'", lastLine.startState.toLaTex()]]),
-                newCom, [newCom], resetContext, surround);
-            this._dispatch(newCom, resetContext, surround);
+            const x = com.var;
+            const a = com.expr;
+            const aVal = arithmeticValue(a);
+            const sigma = startContext;
+            const oldVal = startContext.getValue(x);
+
+            const _alteredContext = startContext.setImm(x, new Num(aVal.value));
+
+            const sem = new EvalSmallStepSemantic(com.com, _alteredContext, this.maxSteps - 1);
+            const evalRet = sem.eval();
+            this.maxSteps = sem.maxSteps;
+
+            this.maxStepsReached = evalRet.maxStepsReached;
+
+            let lastVal = new Num(100);
+
+            const lastVals = sem.evalSteps.steps.map(line => line.currentEvalLine.startState.getValue(x));
+            let i = 0;
+            let lastCom = com.com;
+            let lastLine = sem.evalSteps.startLine;
+            for (let line of sem.evalSteps.steps) {
+                lastVal = lastVals[i];
+                let curCom = line.currentEvalLine.actualCom;
+                let curLine = line.currentEvalLine;
+                line.currentEvalLine.startState.setValue(x, oldVal);
+
+                line.currentEvalLine.displayCom = surround(new LocalAss(x, lastVal, line.currentEvalLine.displayCom));
+                this.evalSteps.steps.push(line);
+                lastLine.highlightNodes([lastLine.program]);
+                line.appliedRule.childApplications.push(
+                    new RuleApplication("Block1SS",
+                        [["x", com.var.name], ["a", com.expr.toLaTex()], ["c", lastCom.toLaTex()], ["\\sigma", startContext.toLaTex()],
+                            ["c'", verb(curCom.toLaTex())], ["\\sigma'", startContext.toLaTex()]]));
+                lastCom = curCom;
+                lastLine = curLine;
+                i += 1;
+            }
+
+            this._highlightPrev([com.com]);
+
+            if (!this.maxStepsReached && !onlyOneStep) {
+                this._dispatch(new LocalAss(x, lastVal, this.evalSteps.endLine.actualCom), this.evalSteps.endState, surround);
+            }
+
         }
     }
 
@@ -1792,8 +1860,9 @@ class EvalSmallStepSemantic {
      * @param {Seq} com
      * @param {Context} startContext
      * @param {Function<Com, Com>} surround
+     * @param {Boolean} onlyOneStep make only one single step
      */
-    _visitSingleCom(com, startContext, surround){
-        return this._dispatch(com.com, startContext, x => new SingleCom(surround(x)));
+    _visitSingleCom(com, startContext, surround, onlyOneStep){
+        return this._dispatch(com.com, startContext, x => new SingleCom(surround(x)), onlyOneStep);
     }
 }

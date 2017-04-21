@@ -128,8 +128,11 @@
                           <input type="radio" name="options"> SmallStep
                       </label>
                   </div>
-                  <span><label style="margin-left: 1cm; margin-right: 0.5cm">Share</label>
-                      <input value="" id="shareLink" style="width: 5cm; color: darkgray;" readonly/></span>
+                      <label style="margin-left: 1cm;">
+                          <input type="checkbox" id="showPopovers" onclick="updateShowPopoverMode()"> Show popovers
+                      </label>
+                  <label style="margin-left: 1cm; margin-right: 0.5cm">Share</label>
+                      <input value="" id="shareLink" style="width: 3cm; color: darkgray;" readonly/>
               </div>
           </div>
       </div>
@@ -182,9 +185,30 @@
         Cookies.set("mode", isInBigStepMode() ? "bs" : "ss");
     }
 
+    function shouldShowPopovers(){
+        return document.getElementById("showPopovers").checked;
+    }
+    
+    function updateShowPopoverMode() {
+        Cookies.set("showPopovers", shouldShowPopovers());
+    }
+
+    function updateShareURL() {
+        let hash = encodeURI(JSON.stringify({
+            "source": Cookies.get("source"),
+            "maxSteps": Cookies.get("maxSteps"),
+            "vars": varsEditor.getValue(),
+            "mode": Cookies.get("mode")
+        }));
+        document.getElementById("shareLink").value = document.URL.split("#")[0] + "#" + hash;
+    }
+
     let currentlyPopoveredElem = null;
 
     function display(elemSelector, html){
+        if (!shouldShowPopovers()){
+            return;
+        }
         //document.querySelector("#ruleApplication").innerHTML = html;
         popoverOptions = {
             content: html,
@@ -238,6 +262,8 @@
         Cookies.set("mode", hashVal["mode"]);
     } catch (e){}
 
+    document.getElementById("showPopovers").checked = Cookies.get("showPopovers") !== "false";
+
     setMode(Cookies.get("mode") !== "ss");
     let sourceEditor = CodeMirror.fromTextArea(document.getElementById("source"), {
         mode:  "text/x-while",
@@ -277,9 +303,7 @@
         let maxSteps = Number.parseInt(document.getElementById("maxSteps").value);
         Cookies.set("maxSteps", maxSteps);
         Cookies.set("vars", varsEditor.getValue());
-        let hash = encodeURI(JSON.stringify({"source": text, "maxSteps": maxSteps, "vars": varsEditor.getValue(),
-            "mode": Cookies.get("mode")}));
-        document.getElementById("shareLink").value = document.URL.split("#")[0] + "#" + hash
+        updateShareURL();
         try {
             let contextFactory = new ContextFactory();
             let con = contextFactory.createFromString(varsEditor.getValue());

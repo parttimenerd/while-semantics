@@ -119,9 +119,9 @@
           <div class="form-inline" style="margin-bottom: 0.5cm;">
               <div class="form-group">
                   <label for="maxSteps" class="">Max steps</label>
-                  <input class="form-control" type="number" value="100" id="maxSteps" style="margin-left: 0.5cm; width: 2cm; text-align: right" onchange="update()" onkeyup="update()" min="0" max="10000">
+                  <input class="form-control w-tooltip" title="Change by typing '+' / '-'" type="number" value="100" id="maxSteps" style="margin-left: 0.5cm; width: 2cm; text-align: right" onchange="update()" onkeyup="update()" min="0" max="10000">
                   <label style="margin-left: 1cm; margin-right: 0.5cm;">Used semantics</label>
-                  <div class="btn-group" data-toggle="buttons">
+                  <div class="btn-group w-tooltip" data-toggle="buttons" title="Switch between semantics by typing 's'">
                       <label class="btn btn-primary" id="bsMode" onclick="setMode(true); update();">
                           <input type="radio" name="options"> BigStep
                       </label>
@@ -129,7 +129,7 @@
                           <input type="radio" name="options"> SmallStep
                       </label>
                   </div>
-                      <label style="margin-left: 1cm;">
+                      <label style="margin-left: 1cm;" class="w-tooltip" title="Toggle by typing 'p'">
                           <input type="checkbox" id="showPopovers" onclick="updateShowPopoverMode()"> Show popovers
                       </label>
                   <label style="margin-left: 1cm; margin-right: 0.5cm">Share</label>
@@ -169,6 +169,8 @@
     function getMouseY() {
         return y;
     }
+
+    $(".w-tooltip").tooltip();
 
     _inBigStepMode = true;
     function isInBigStepMode(){

@@ -133,7 +133,7 @@
                           <input type="checkbox" id="showPopovers" onclick="updateShowPopoverMode()"> Show popovers
                       </label>
                   <label style="margin-left: 1cm; margin-right: 0.5cm">Share</label>
-                      <input value="" id="shareLink" style="width: 3cm; color: darkgray;" readonly/>
+                      <input value="" id="_shareLink" style="width: 3cm; color: darkgray;" readonly/>
               </div>
           </div>
       </div>
@@ -196,6 +196,9 @@
     function setShowPopoverMode(showPopovers){
         document.getElementById("showPopovers").checked = showPopovers;
         Cookies.get("showPopovers", showPopovers);
+        if (currentlyPopoveredElem !== null) {
+            currentlyPopoveredElem.popover(popoverOptions).popover(showPopovers ? 'show' : 'hide');
+        }
     }
 
     function setMaxSteps(maxSteps){
@@ -214,15 +217,12 @@
             "vars": varsEditor.getValue(),
             "mode": Cookies.get("mode")
         }));
-        document.getElementById("shareLink").value = document.URL.split("#")[0] + "#" + hash;
+        document.getElementById("_shareLink").value = document.URL.split("#")[0] + "#" + hash;
     }
 
     let currentlyPopoveredElem = null;
 
     function display(elemSelector, html){
-        if (!shouldShowPopovers()){
-            return;
-        }
         //document.querySelector("#ruleApplication").innerHTML = html;
         popoverOptions = {
             content: html,
@@ -234,7 +234,9 @@
             mousePos: {posX: getMouseX(), posY: getMouseY()}
         };
         currentlyPopoveredElem = $(elemSelector).last();
-        currentlyPopoveredElem.popover(popoverOptions).popover('show');
+        if (shouldShowPopovers()){
+            currentlyPopoveredElem.popover(popoverOptions).popover('show');
+        }
     }
     /** @param {RuleApplication} ruleApplication */
     function displayRule(elemSelector, ruleApplication){
@@ -365,6 +367,10 @@
     Mousetrap.bind(["l", "-"], () => {
         setMaxSteps(Math.max(getMaxSteps() - 1, 0));
         update();
+    });
+
+    Mousetrap.bind("p", () => {
+        setShowPopoverMode(!shouldShowPopovers());
     });
 </script>
 </body>

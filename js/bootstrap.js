@@ -1379,7 +1379,6 @@ if (typeof jQuery === 'undefined') {
     if (obj instanceof $.Event) {
           self.inState[obj.type == 'focusin' ? 'focus' : 'hover'] = true
           self.options.mousePos = {posX: getMouseX(), posY: getMouseY()}
-          console.log(self.options.mousePos)
     }
     if (self.tip().hasClass('in') || self.hoverState == 'in') {
       self.hoverState = 'in'

@@ -41,6 +41,10 @@ div.rulename {
     margin-top: 0.2cm;
 }
 
+.modal-body .instantiated-vars {
+    margin-top: 0.5cm;
+}
+
 /*.sub {
     vertical-align: sub;
     font-size: smaller;
@@ -76,8 +80,14 @@ div.rulename {
     border-top: lightgray solid 0.05cm;
     margin-top: -0.3cm;
     margin-bottom: -0.3cm;
-    padding: 0cm;
+    padding: 0;
     width: 100%;
+}
+
+.modal-body .rule-app-sep {
+    margin-top: 0.2cm;
+    margin-bottom: 0.2cm;
+    border-top: none;
 }
 
 /** Source: http://stackoverflow.com/a/16338823 */

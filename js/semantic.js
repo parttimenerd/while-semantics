@@ -1197,8 +1197,8 @@ class RuleApplication {
         return ret
     }
 
-    toCallJS(cssElemSelector){
-        return `displayRule(${cssElemSelector}, ${this.toJSRep()})`;
+    toCallJS(cssElemSelector, displayInModal){
+        return `displayRule(${cssElemSelector}, ${this.toJSRep()}, ${displayInModal})`;
     }
 
     toJSRep(){
@@ -1244,16 +1244,17 @@ class EvalStep {
         let eventHandlers = "";
         const cssLineClass = `bs_line_${this.currentEvalLine.htmlId}`;
         if (this.appliedRule instanceof RuleApplication) {
-        eval(`     window.stepFunc${id} = function(evt) {
-${this.appliedRule.toCallJS("evt")};
+        eval(`     window.stepFunc${id} = function(evt, displayInModal) {
+${this.appliedRule.toCallJS("evt", "displayInModal")};
 };`);
             const highlightIds = ["'" + this.currentEvalLine.htmlId + "'"];
             if (_prevHTMLId !== -1){
                 highlightIds.push("'" + _prevHTMLId + "'");
             }
             const onmouseleave = `clearRule('.${cssLineClass}'); unhighlightPrevAndCur(${highlightIds.join(",")}); unhighlightElems('.${cssLineClass}');`;
-            const onmouseover = `if (!window.isContextUnderFocus) {window.stepFunc${id}(this); highlightPrevAndCur(${highlightIds.join(",")}); highlightElems('.${cssLineClass}');}`;
-            eventHandlers = `onmouseleave="${onmouseleave}" onmouseover="${onmouseover}"`;
+            const onmouseover = `if (!window.isContextUnderFocus) {window.stepFunc${id}(this, false); highlightPrevAndCur(${highlightIds.join(",")}); highlightElems('.${cssLineClass}');}`;
+            const onclick = `window.stepFunc${id}(this, true); clearRule('.${cssLineClass}');`;
+            eventHandlers = `onmouseleave="${onmouseleave}" onmouseover="${onmouseover}" onclick="${onclick}"`;
         } else {
         }
         return `
@@ -1517,8 +1518,8 @@ class SSEvalStep {
         __random_num += 1;
         let id = __random_num;
         if (this.appliedRule instanceof RuleApplication) {
-            eval(`     window.stepFunc${id} = function(evt) {
-${this.appliedRule.toCallJS("evt")};
+            eval(`     window.stepFunc${id} = function(evt, displayInModal) {
+${this.appliedRule.toCallJS("evt", "displayInModal")};
 };`);
         }
         const highlightIds = ["'" + this.currentEvalLine.htmlId + "'"];
@@ -1526,7 +1527,8 @@ ${this.appliedRule.toCallJS("evt")};
             highlightIds.push("'" + _prevHTMLId + "'");
         }
         return `
-    <span class="ss_step" onmouseleave="clearRule(this); unhighlightPrevAndCur(${highlightIds.join(",")});" onmouseover="if (!window.isContextUnderFocus) {window.stepFunc${id}(this); highlightPrevAndCur(${highlightIds.join(",")});}">
+    <span class="ss_step" onmouseleave="clearRule(this); unhighlightPrevAndCur(${highlightIds.join(",")});" onmouseover="if (!window.isContextUnderFocus) {window.stepFunc${id}(this, false); highlightPrevAndCur(${highlightIds.join(",")});}"
+            onclick="clearRule(this); window.stepFunc${id}(this, true);">
         <span class="ss_arrow">→<span class="sub">${subscriptNumber(1)}</span></span>
         <span class="ss_eval_line">
             ${this.maxStepsReached ? `… maximum number of steps reached ` : this.currentEvalLine.toHTML()}

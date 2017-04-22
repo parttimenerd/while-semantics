@@ -120,7 +120,7 @@
               <div class="form-group">
                   <label for="maxSteps" class="">Max steps</label>
                   <input class="form-control w-tooltip" title="Change by typing '+' / '-'" type="number" value="100" id="maxSteps" style="margin-left: 0.5cm; width: 2cm; text-align: right" onchange="update()" onkeyup="update()" min="0" max="10000">
-                  <label style="margin-left: 1cm; margin-right: 0.5cm;">Used semantics</label>
+                 <label style="margin-left: 1cm; margin-right: 0.5cm;">Used semantics</label>
                   <div class="btn-group w-tooltip" data-toggle="buttons" title="Switch between semantics by typing 's'">
                       <label class="btn btn-primary" id="bsMode" onclick="setMode(true); update();">
                           <input type="radio" name="options"> BigStep
@@ -147,6 +147,20 @@
 
 <div class="cm-s-default" style="padding-top: 11cm; margin-left: auto; margin-right: auto; text-align: center;">
     <div id="result" style="margin-left: auto; margin-right: auto; height: 100%;text-align: center;"></div>
+</div>
+
+
+<div class="modal fade" tabindex="-1" role="dialog" id="ruleApplicationModal">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="exampleModalLabel" style="text-align: center">Rule application</h4>
+            </div>
+            <div class="modal-body">
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -225,6 +239,7 @@
     let currentlyPopoveredElem = null;
 
     function display(elemSelector, html){
+
         //document.querySelector("#ruleApplication").innerHTML = html;
         popoverOptions = {
             content: html,
@@ -240,10 +255,21 @@
             currentlyPopoveredElem.popover(popoverOptions).popover('show');
         }
     }
+
+    function displayInModal(html){
+        $("#ruleApplicationModal .modal-body").html(html);
+        $("#ruleApplicationModal").modal({'keyboard': true, 'show': true});
+    }
+
     /** @param {RuleApplication} ruleApplication */
-    function displayRule(elemSelector, ruleApplication){
+    function displayRule(elemSelector, ruleApplication, shouldDisplayInModal=false){
         let formulaArr = ruleApplication.toInstantiatedLaTexArr();
-        display(elemSelector, formulaArr.map(x => renderLaTex(x[0]) + `<div class="instantiated-vars">${renderLaTex(x[1])}</div>`).map(x => `<div class="rule-app">${x}</div>`).join(`<br/><div class="rule-app-sep"></div><br/>`));
+        const html = formulaArr.map(x => renderLaTex(x[0]) + `<div class="instantiated-vars">${renderLaTex(x[1])}</div>`).map(x => `<div class="rule-app">${x}</div>`).join(`<br/><div class="rule-app-sep"></div><br/>`);
+        if (shouldDisplayInModal){
+            displayInModal(html);
+        } else {
+            display(elemSelector, html);
+        }
     }
 
     _renderLaTexCache = new Map();

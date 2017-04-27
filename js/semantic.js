@@ -1652,6 +1652,7 @@ class EvalSmallStepSemantic {
         let step = new SSEvalStep(appliedRule, new ComEvalLine(surround(actualCom), context, null, actualCom,
             surround(actualCom.wrapNodes(highlightedNodes, x => new HighlightNode(x)))), maxStepsReached);
         this.evalSteps.addStep(step);
+        this.steps += 1;
     }
 
     /**
@@ -1681,12 +1682,11 @@ class EvalSmallStepSemantic {
         if (isSkip(com)){
             return;
         }
-        if (this.maxSteps < this.steps){
+        if (this.maxSteps <= this.steps){
             this.maxStepsReached = true;
             this._addStep(new RuleApplication("maxSteps", []), new Skip(), [com], startContext, x => x, true);
             return;
         }
-        this.steps +=1;
         let funcs = {
             "Skip": this._visitSkip,
             "Seq": this._visitSeq,
@@ -1819,9 +1819,10 @@ class EvalSmallStepSemantic {
 
             const _alteredContext = startContext.setImm(x, new Num(aVal.value));
 
-            const sem = new EvalSmallStepSemantic(com.com, _alteredContext, this.maxSteps - 1);
+            const sem = new EvalSmallStepSemantic(com.com, _alteredContext, this.maxSteps);
+            sem.steps = this.steps;
             const evalRet = sem.eval();
-            this.maxSteps = sem.maxSteps;
+            this.steps = sem.steps;
 
             this.maxStepsReached = evalRet.maxStepsReached;
 

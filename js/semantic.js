@@ -301,7 +301,11 @@ class ContextFactory {
             str.replace(/ /g, "").split(",").forEach(part => {
                 if (part.length > 1) {
                     let subParts = part.split(/->|→|↦/);
-                    map.set(subParts[0].trim(), Number(subParts[1].trim()));
+                    const numPart = subParts[1].trim();
+                    if (numPart.length === 0){
+                        throw "Context string has invalid format";
+                    }
+                    map.set(subParts[0].trim(), Number(numPart));
                 }
             });
         } catch (e){

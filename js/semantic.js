@@ -1,6 +1,10 @@
 /* Source: http://stackoverflow.com/a/36644558 */
 Object.entries = typeof Object.entries === 'function' ? Object.entries : obj => Object.keys(obj).map(k => [k, obj[k]]);
 
+function flatten(arr){
+    return arr.reduce((acc, val) => acc.concat(val), []);
+}
+
 /** Abstract AST visitor */
 class Visitor {
 
@@ -284,6 +288,40 @@ class Num extends Aexp {
     }
 }
 
+function digitsToNumber(digits){
+    return parseInt(flatten(digits).join(""), 10);
+}
+
+function parseContext(contextStr, contextFactory) {
+    if (this.contextParser === undefined) {
+        this.contextParser = peg.generate('        \
+    start \
+        = _ ass:ass _ "," _ map:start _ {map.set(ass[0], ass[1]); return map;}\
+        / ass:ass {const map = new Map(); map.set(ass[0], ass[1]); return map;};\
+    ass = v:var _ arrow _ i:integer {return [v, i];};\
+    var = _var:([a-zA-Z][a-zA-Z0-9]*) {return _var.join("");};\
+    integer\
+        = digits:(([+-]?)[0-9]+) { return digitsToNumber(digits); }\
+        / "⊥" {return NaN;};\
+    \
+    arrow = "->" / "→" / "↦";\
+        _ "ignored"\
+            = ws (comment _)+\
+            / ws;\
+        ws = [ \\t\\n\\r]*;\
+        comment = \
+            "#" [^\\n]* _\
+            / "/*" (!"*/" .)* "*/"\
+            / "//" [^\\n]* _;');
+    }
+    const parser = this.contextParser;
+    const parsed = PEGUtil.parse(parser, contextStr.trim());
+    if (parsed.error !== null) {
+        throw PEGUtil.errorMessage(parsed.error, true);
+    }
+    return contextFactory.create(parsed.ast);
+}
+
 class ContextFactory {
     constructor(){
         this.maxId = 0
@@ -296,23 +334,7 @@ class ContextFactory {
     }
 
     createFromString(str){
-        let map = new Map();
-        try {
-            str.replace(/ /g, "").split(",").forEach(part => {
-                if (part.length > 1) {
-                    let subParts = part.split(/->|→|↦/);
-                    const numPart = subParts[1].trim();
-                    if (numPart.length === 0){
-                        throw "Context string has invalid format";
-                    }
-                    map.set(subParts[0].trim(), Number(numPart));
-                }
-            });
-        } catch (e){
-            console.error(e);
-            throw "Context string has invalid format";
-        }
-        return this.create(map)
+        return parseContext(str, this);
     }
 }
 
@@ -1197,7 +1219,7 @@ class RuleApplication {
 
     toInstantiatedLaTexArr(){
         const ret = [[`\\text{${this.toString()}}: ${rules[this.ruleId].formula}`,
-            `${this.instantiations.map(x => `${x[0]} \\equiv ${x[1]}`).join(",~")}`]].concat(this.childApplications.map(x => x.toInstantiatedLaTexArr()).reduce((acc, val) => acc.concat(val), []));
+            `${this.instantiations.map(x => `${x[0]} \\equiv ${x[1]}`).join(",~")}`]].concat(flatten(this.childApplications.map(x => x.toInstantiatedLaTexArr())));
         return ret
     }
 

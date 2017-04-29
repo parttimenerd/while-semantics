@@ -41,7 +41,7 @@
             }
         };
 
-        window.parser = peg.generate('\
+        window.whileParser = peg.generate('\
         start = _ c:Com _ {return c;};\
         \
         Com \
@@ -93,7 +93,7 @@
         mulop = "*" / "/";\
         Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(_var.join(""));};\
         integer\
-            = digits:(([+-]?)[0-9]+) { return parseInt(digits.join(""), 10); }\
+            = digits:(([+-]?)[0-9]+) { return digitsToNumber(digits); }\
             / "⊥" {return NaN;};\
         _ "ignored"\
             = ws (comment _)+\
@@ -369,7 +369,7 @@
         try {
             let contextFactory = new ContextFactory();
             let con = contextFactory.createFromString(varsEditor.getValue());
-            let parsed = PEGUtil.parse(parser, text.trim());
+            let parsed = PEGUtil.parse(whileParser, text.trim());
             if (parsed.error !== null) {
                 resultContextEditor.setValue(PEGUtil.errorMessage(parsed.error, true));
                 return;

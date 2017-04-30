@@ -6,6 +6,9 @@
     <script src="js/mousetrap.min.js"></script>
     <script src="js/jquery-3.2.0.min.js"></script>
     <script src="js/codemirror.js"></script>
+    <script src="js/codemirror-addons/show-hint.js"></script>
+    <script src="js/codemirror-addons/closebrackets.js"></script>
+    <script src="js/autocompletion.js"></script>
     <script src="js/while_mode.js"></script>
     <script src="js/peg-0.10.0.min.js"></script>
     <script src="js/PEGUtils.js"></script>
@@ -16,6 +19,7 @@
     <script src="libs/katex/contrib/auto-render.min.js"></script>
     <link rel="stylesheet" type="text/css" href="css/bootstrap.css"/>
     <link rel="stylesheet" type="text/css" href="css/codemirror.css"/>
+    <link rel="stylesheet" type="text/css" href="css/show-hint.css"/>
     <link rel="stylesheet" type="text/css" href="libs/katex/katex.css"/>
     <link rel="stylesheet" type="text/css" href="css/style.css"/>
 </head>
@@ -326,18 +330,32 @@
     let sourceEditor = CodeMirror.fromTextArea(document.getElementById("source"), {
         mode:  "text/x-while",
         lineWrapping: true,
-        matchClosing: true
+        matchClosing: true,
+        autoCloseBrackets: true,
+        extraKeys: {"Ctrl-Space": "autocomplete"},
+        wordHints: (text) => whileCompletionHints(sourceEditor.getValue(), varsEditor.getValue())
+    });
+    sourceEditor.on("keyup", blurOnEsc);
+    sourceEditor.on("inputRead", (cm, input) => {
+        if (input.text[0] === ';' || input.text[0] === ' ') { return; }
+        CodeMirror.commands.autocomplete(cm, false)
     });
     sourceEditor.setSize("100%","100%");
     sourceEditor.setValue((Cookies.get("source") || "").length < 1 ? "if (a<=2) then skip else a:=4" : Cookies.get("source"))
     sourceEditor.on('keyup', blurOnEsc);
     let varsEditor = CodeMirror.fromTextArea(document.getElementById("vars"), {
         mode:  "text/x-while",
-        lineWrapping: true
+        lineWrapping: true,
+        extraKeys: {"Ctrl-Space": "autocomplete"},
+        wordHints: (text) => varsCompletionHints(sourceEditor.getValue(), varsEditor.getValue())
     });
     varsEditor.setSize("100%","100%");
     varsEditor.setValue((Cookies.get("vars") || "").length < 1 ? "a -> 5" : Cookies.get("vars"));
     varsEditor.on('keyup', blurOnEsc);
+    varsEditor.on("inputRead", (cm, input) => {
+        if (input.text[0] === ';' || input.text[0] === ' ') { return; }
+        CodeMirror.commands.autocomplete(cm, false)
+    });
     let resultContextEditor = CodeMirror.fromTextArea(document.getElementById("resultContextTA"), {
         mode:  "text/x-while",
         lineWrapping: true,
@@ -390,7 +408,7 @@
             }
             document.getElementById("result").innerHTML = result.tree.toHTML();
         } catch (e){
-            console.error(e);
+            //console.error(e);
             resultContextEditor.setValue(e instanceof Error ? e.message : e)
         }
         // let resultST = new EvalSmallSemantic(parsed, con, maxSteps).eval();

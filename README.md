@@ -13,6 +13,7 @@ Features
 - draws nice evaluation trees
 - shows information about the used rules
 - syntax highlighting for code input via modified CodeMirror mode
+- auto completion for code and context
 - "sharing" of configurations via URLs
 - many keyboard shortcuts to simplify the usage in lectures
 

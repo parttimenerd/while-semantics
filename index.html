@@ -332,13 +332,13 @@
         lineWrapping: true,
         matchClosing: true,
         autoCloseBrackets: true,
-        extraKeys: {"Ctrl-Space": "autocomplete"},
+        extraKeys: {"Ctrl-Space": "autocompleteWhile"},
         wordHints: (text) => whileCompletionHints(sourceEditor.getValue(), varsEditor.getValue())
     });
     sourceEditor.on("keyup", blurOnEsc);
     sourceEditor.on("inputRead", (cm, input) => {
         if (input.text[0] === ';' || input.text[0] === ' ') { return; }
-        CodeMirror.commands.autocomplete(cm, false)
+        CodeMirror.commands.autocompleteWhile(cm, false)
     });
     sourceEditor.setSize("100%","100%");
     sourceEditor.setValue((Cookies.get("source") || "").length < 1 ? "if (a<=2) then skip else a:=4" : Cookies.get("source"))
@@ -346,15 +346,15 @@
     let varsEditor = CodeMirror.fromTextArea(document.getElementById("vars"), {
         mode:  "text/x-while",
         lineWrapping: true,
-        extraKeys: {"Ctrl-Space": "autocomplete"},
+        extraKeys: {"Ctrl-Space": "autocompleteVars"},
+        sourceCode: () => sourceEditor.getValue(),
         wordHints: (text) => varsCompletionHints(sourceEditor.getValue(), varsEditor.getValue())
     });
     varsEditor.setSize("100%","100%");
     varsEditor.setValue((Cookies.get("vars") || "").length < 1 ? "a -> 5" : Cookies.get("vars"));
     varsEditor.on('keyup', blurOnEsc);
     varsEditor.on("inputRead", (cm, input) => {
-        if (input.text[0] === ';' || input.text[0] === ' ') { return; }
-        CodeMirror.commands.autocomplete(cm, false)
+        CodeMirror.commands.autocompleteVars(cm, false)
     });
     let resultContextEditor = CodeMirror.fromTextArea(document.getElementById("resultContextTA"), {
         mode:  "text/x-while",

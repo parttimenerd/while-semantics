@@ -40,28 +40,38 @@
         var dedentTokens = wordRE(["end", "\\)", "}"]);
         var dedentPartial = prefixRE(["end", "\\)", "}", "else"]);
 
-        function readBracket(stream) {
-            var level = 0;
-            while (stream.eat("=")) ++level;
-            stream.eat("[");
-            return level;
-        }
-
         function normal(stream, state) {
             var ch = stream.next();
-            if (ch == "-" && stream.eat("-")) {
-                if (stream.eat("[") && stream.eat("["))
-                    return (state.cur = bracketed(readBracket(stream), "comment"))(stream, state);
-                stream.skipToEnd();
-                return "comment";
+            if (ch === "/") {
+                if (stream.eat("*")) {
+                    var maybeEnd = false, ch;
+                    while (ch = stream.next()) {
+                        if (ch == "/" && maybeEnd) {
+                            break;
+                        }
+                        maybeEnd = (ch == "*");
+                    }
+                    return "comment"
+                } else if (stream.eat("/")) {
+                    stream.skipToEnd();
+                    return "comment";
+                }
             }
-            if (ch == "\"" || ch == "'")
-                return (state.cur = string(ch))(stream, state);
-            if (ch == "[" && /[\[=]/.test(stream.peek()))
-                return (state.cur = bracketed(readBracket(stream), "string"))(stream, state);
             if (/\d|⊥/.test(ch)) {
                 stream.eatWhile(/[\w.%]|⊥/);
                 return "number";
+            }
+            if ((ch === "-" && stream.next() === ">") || ch === "→" || ch === "↦"){
+                return "arrow";
+            }
+            if (ch === ","){
+                return "comma";
+            }
+            if (ch == ":"){
+                if (stream.next() == "="){
+                    return "assign"
+                }
+                return null;
             }
             if (/[\w_]/.test(ch)) {
                 stream.eatWhile(/[\w\\\-_.]/);
@@ -121,9 +131,9 @@
                 return state.basecol + indentUnit * (state.indentDepth - (closing ? 1 : 0));
             },
 
-            lineComment: "--",
-            blockCommentStart: "--[[",
-            blockCommentEnd: "]]"
+            lineComment: "//",
+            blockCommentStart: "/*",
+            blockCommentEnd: "*/"
         };
     });
 

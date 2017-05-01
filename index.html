@@ -95,7 +95,7 @@
             / Var\
             / "(" _ aexp:Aexp _ ")" {return new SingleAexp(aexp);};\
         mulop = "*" / "/";\
-        Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(_var.join(""));};\
+        Var = _var:([a-zA-Z][a-zA-Z0-9]*) {return new Var(flatten(_var).join(""));};\
         integer\
             = digits:(([+-]?)[0-9]+) { return digitsToNumber(digits); }\
             / "⊥" {return NaN;};\

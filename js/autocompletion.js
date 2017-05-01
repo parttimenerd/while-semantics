@@ -85,7 +85,7 @@ function decrementCursor(cm, cursor){
 function getPreviousNonCommentToken(cm){
     let cur = cm.getCursor();
     const currentToken = cm.getTokenAt(cur);
-    while (currentToken.string === cm.getTokenAt(cur).string){
+    while (cur !== null && currentToken.string === cm.getTokenAt(cur).string){
         cur = decrementCursor(cm, cur);
     }
     while (cur){
@@ -111,14 +111,15 @@ CodeMirror.commands.autocompleteVars = function(cm, completeSingle = true) {
 
     const existingVars = cm.getValue().match(WORD) || [];
     const strs = whileCompletionHints(cm.options.sourceCode(), cm.getValue())
-        .filter((word) => !WHILE_KEYWORDS.includes(word) && !existingVars.includes(word));
+        .filter((word) => (!WHILE_KEYWORDS.includes(word) && !existingVars.includes(word)) || word === curWord);
     const numbers = strs.filter((w) => /^[+-]?\d+$/.test(w));
     const variables = strs.filter((w) => /^\w+$/.test(w) && !numbers.includes(w));
 
     const prevToken = getPreviousNonCommentToken(cm);
 
     let completeMode =  "variable";
-    if (token.string === "-") {
+    if (prevToken === null){
+    } else if (token.string === "-") {
         completeMode = "arrow";
     } else if (token.string === ","){
         completeMode = "variable";
@@ -142,7 +143,7 @@ CodeMirror.commands.autocompleteVars = function(cm, completeSingle = true) {
 
     switch(completeMode){
         case "variable":
-            hints = variables.filter((v) => v.startsWith(curWord)).map((v) => v + " ↦ ");
+            hints = variables.filter((v) => v.startsWith(curWord)).map((v) => (token.string === "," ? " " : "") + v + " ↦ ");
             break;
         case "arrow":
             hints = [{

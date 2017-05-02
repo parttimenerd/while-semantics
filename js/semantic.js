@@ -314,12 +314,16 @@ function parseContext(contextStr, contextFactory) {
             / "/*" (!"*/" .)* "*/"\
             / "//" [^\\n]* _;');
     }
-    const parser = this.contextParser;
-    const parsed = PEGUtil.parse(parser, contextStr.trim());
-    if (parsed.error !== null) {
-        throw PEGUtil.errorMessage(parsed.error, true);
+    if (contextStr.trim().length > 0) {
+        const parser = this.contextParser;
+        const parsed = PEGUtil.parse(parser, contextStr.trim());
+        if (parsed.error !== null) {
+            throw PEGUtil.errorMessage(parsed.error, true);
+        }
+        return contextFactory.create(parsed.ast);
+    } else {
+        return contextFactory.create(new Map());
     }
-    return contextFactory.create(parsed.ast);
 }
 
 class ContextFactory {

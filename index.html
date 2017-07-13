@@ -54,7 +54,7 @@
             = left:subcom _ ";" _ right:Seq {return new Seq(left, right);}\
             / subcom;\
         LocalAss \
-            = "{" _ "var" _ _var:Var _ ":=" _ aexp:Aexp _ ";" _ com:Com _ "}" {return new LocalAss(_var, aexp, com);};\
+            = "{" _ "var" _ _var:Var _ "=" _ aexp:Aexp _ ";" _ com:Com _ "}" {return new LocalAss(_var, aexp, com);};\
         subcom \
             = "skip" {return new Skip();}\
             / _var:Var _ ":=" _ aexp:Aexp {return new Ass(_var, aexp);}\
